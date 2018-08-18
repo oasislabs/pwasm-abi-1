@@ -1,11 +1,13 @@
 use {quote, syn, utils};
 
+#[derive(Debug)]
 pub struct Interface {
 	name: String,
 	constructor: Option<Signature>,
 	items: Vec<Item>,
 }
 
+#[derive(Debug)]
 pub struct Event {
 	pub name: syn::Ident,
 	pub canonical: String,
@@ -14,7 +16,7 @@ pub struct Event {
 	pub data: Vec<(syn::Pat, syn::Ty)>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Signature {
 	pub name: syn::Ident,
 	pub canonical: String,
@@ -24,8 +26,10 @@ pub struct Signature {
 	pub return_types: Vec<syn::Ty>,
 	pub is_constant: bool,
 	pub is_payable: bool,
+	pub size_hint: Option<usize>,
 }
 
+#[derive(Debug)]
 pub enum Item {
 	Signature(Signature),
 	Event(Event),
@@ -78,7 +82,7 @@ impl Interface {
 	}
 }
 
-fn into_signature(ident: syn::Ident, method_sig: syn::MethodSig, is_constant: bool, is_payable: bool) -> Signature {
+fn into_signature(ident: syn::Ident, method_sig: syn::MethodSig, is_constant: bool, is_payable: bool, size_hint: Option<usize>) -> Signature {
 	let arguments: Vec<(syn::Pat, syn::Ty)> = utils::iter_signature(&method_sig).collect();
 	let canonical = utils::canonical(&ident, &method_sig);
 	let return_types: Vec<syn::Ty> = match method_sig.decl.output {
@@ -103,6 +107,7 @@ fn into_signature(ident: syn::Ident, method_sig: syn::MethodSig, is_constant: bo
 		return_types: return_types,
 		is_constant: is_constant,
 		is_payable: is_payable,
+		size_hint: size_hint,
 	}
 }
 
@@ -111,6 +116,21 @@ fn has_attribute(attrs: &[syn::Attribute], name: &str) -> bool {
 		syn::MetaItem::Word(ref ident) => ident.as_ref() == name,
 		_ => false
 	})
+}
+
+fn get_attribute(attrs: &[syn::Attribute], name: &str) -> Option<syn::Lit> {
+	for attr in attrs.iter() {
+		match attr.value {
+			syn::MetaItem::NameValue(ref ident, ref lit) => {
+				if ident.as_ref() != name {
+					continue;
+				}
+				return Some(lit.clone());
+			},
+			_ => continue
+		}
+	}
+	None
 }
 
 impl Item {
@@ -138,12 +158,16 @@ impl Item {
 				} else {
 					let constant = has_attribute(&attrs, "constant");
 					let payable = has_attribute(&attrs, "payable");
+					let size_hint = match get_attribute(&attrs, "size_hint") {
+						Some(syn::Lit::Int(val, _)) => Some(val as usize),
+						_ => None,
+					};
 					assert!(!(constant && payable),
 						format!("Method {} cannot be constant and payable at the same time", ident.to_string()
 					));
 					assert!(!(ident.as_ref() == "constructor" && constant), "Constructor can't be constant");
 					Item::Signature(
-						into_signature(ident, method_sig, constant, payable)
+						into_signature(ident, method_sig, constant, payable, size_hint)
 					)
 				}
 			},

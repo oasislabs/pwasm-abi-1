@@ -141,12 +141,13 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> quote::Tok
 					.collect();
 				let argument_count_literal = syn::Lit::Int(argument_push.len() as u64, syn::IntTy::Usize);
 
+				let size_hint = signature.size_hint.unwrap_or(32);
 				let result_instance = match signature.method_sig.decl.output {
 					syn::FunctionRetTy::Default => quote!{
 						let mut result = Vec::new();
 					},
 					syn::FunctionRetTy::Ty(_) => quote!{
-						let mut result = [0u8; 32];
+						let mut result = [0; #size_hint];
 					},
 				};
 

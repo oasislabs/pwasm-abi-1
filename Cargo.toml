@@ -19,7 +19,7 @@ panic = "abort"
 pwasm-std = "0.10"
 
 [dependencies.uint]
-version = "0.3"
+version = "0.4"
 default-features = false
 
 [dependencies.byteorder]

@@ -176,8 +176,7 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> quote::Tok
 						sink.drain_to(&mut payload);
 
 						#result_instance
-
-						pwasm_ethereum::call(self.gas.unwrap_or(200000), &self.address, self.value.clone().unwrap_or(U256::zero()), &payload, &mut result[..])
+						pwasm_ethereum::call(self.gas.unwrap_or(10000000), &self.address, self.value.clone().unwrap_or(U256::zero()), &payload, &mut result[..])
 							.expect("Call failed; todo: allow handling inside contracts");
 
 						#result_pop

@@ -3,122 +3,216 @@
 #![deny(unused)]
 
 extern crate proc_macro;
+extern crate proc_macro2;
+
+#[macro_use]
 extern crate syn;
-#[macro_use] extern crate quote;
-extern crate tiny_keccak;
+
+#[macro_use]
+extern crate quote;
+
 extern crate byteorder;
 extern crate parity_hash;
 extern crate serde_json;
-#[macro_use] extern crate serde_derive;
+extern crate tiny_keccak;
 
+#[macro_use]
+extern crate serde_derive;
+
+mod error;
 mod items;
 mod utils;
 mod json;
 
-use proc_macro::TokenStream;
-
+use proc_macro2::{Span};
+use json::write_json_abi;
 use items::Item;
+use error::{Result, Error};
 
-fn parse_args(args: TokenStream) -> Vec<String> {
-	args.to_string()
-		.split(',')
-		.map(|w| w.trim_matches(&['(', ')', '"', ' '][..]).to_string())
-		.collect()
+/// Arguments given to the `eth_abi` attribute macro.
+struct Args {
+	/// The required name of the endpoint.
+	endpoint_name: String,
+	/// The optional name of the client.
+	client_name: Option<String>,
 }
 
-/// Derive abi for given trait. Should provide one or two arguments:
-/// dispatch structure name and client structure name.
+impl Args {
+	/// Extracts `eth_abi` argument information from the given `syn::AttributeArgs`.
+	pub fn from_attribute_args(attr_args: syn::AttributeArgs) -> Result<Args> {
+		if attr_args.len() == 0 || attr_args.len() > 2 {
+			return Err(Error::invalid_number_of_arguments(0));
+		}
+		let endpoint_name =
+			if let syn::NestedMeta::Meta(syn::Meta::Word(ident)) = attr_args.get(0).unwrap() {
+				Ok(ident.to_string())
+			} else {
+				Err(Error::malformatted_argument(0))
+			}?;
+		let client_name = attr_args
+			.get(1)
+			.map(|meta| {
+				if let syn::NestedMeta::Meta(syn::Meta::Word(ident)) = meta {
+					Ok(ident.to_string())
+				} else {
+					Err(Error::malformatted_argument(1))
+				}
+			})
+			.map(|meta| meta.unwrap());
+		Ok(Args {
+			endpoint_name,
+			client_name,
+		})
+	}
+
+	/// Returns the given endpoint name.
+	pub fn endpoint_name(&self) -> &str {
+		&self.endpoint_name
+	}
+
+	/// Returns the optional client name.
+	pub fn client_name(&self) -> Option<&str> {
+		self.client_name.as_ref().map(|s| s.as_str())
+	}
+}
+
+/// Derive of the Ethereum/Solidity ABI for the given trait interface.
 ///
-/// # Example
+/// The first parameter represents the identifier of the generated endpoint
+/// implementation. The seconds parameter is optional and represents the
+/// identifier of the generated client implementation.
 ///
+/// # System Description
+///
+/// ## Endpoint
+///
+/// Converts ABI encoded payload into a called function with its parameters.
+///
+/// ## Client
+///
+/// Opposite of an endpoint that allows users (clients) to build up queries
+/// in the form of a payload to functions of a contract by a generated interface.
+///
+/// # Example: Using just one argument
+///
+/// ```
 /// #[eth_abi(Endpoint)]
 /// trait Contract { }
+/// ```
 ///
-/// # Example
+/// Creates an endpoint implementation named `Endpoint` for the
+/// interface defined in the `Contract` trait.
 ///
+/// # Example: Using two arguments
+///
+/// ```
 /// #[eth_abi(Endpoint2, Client2)]
 /// trait Contract2 { }
+/// ```
+///
+/// Creates an endpoint implementation named `Endpoint2` and a
+/// client implementation named `Client2` for the interface
+/// defined in the `Contract2` trait.
 #[proc_macro_attribute]
-pub fn eth_abi(args: TokenStream, input: TokenStream) -> TokenStream {
-	let source = input.to_string();
-	let ast = syn::parse_item(&source).expect("Failed to parse derive input");
+pub fn eth_abi(
+	args: proc_macro::TokenStream,
+	input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+	let args_toks = parse_macro_input!(args as syn::AttributeArgs);
+	let input_toks = parse_macro_input!(input as syn::Item);
 
-	let args = parse_args(args);
-	let endpoint_name = args.get(0).expect("Failed to parse an endpoint name argument");
-	let intf = items::Interface::from_item(ast);
+	let output = match impl_eth_abi(args_toks, input_toks) {
+		Ok(output) => output,
+		Err(err) => panic!("[eth_abi] encountered error: {}", err),
+	};
 
-	match args.len() {
-		arg_count @ 1 | arg_count @ 2 => {
-			write_json_abi(&intf);
-			let name_ident_use: syn::Ident = format!("super::{}", &intf.name().clone()).into();
-			let mod_name = format!("pwasm_abi_impl_{}", &intf.name().clone());
-			let mod_name_ident: syn::Ident = mod_name.clone().into();
-			match arg_count {
-				1 => {
-					let endpoint = generate_eth_endpoint(&endpoint_name, &intf);
-					let endpoint_use: syn::Ident = format!("self::{}::{}", &mod_name, &endpoint_name).into();
-					let generated = quote! {
-						#intf
-						#[allow(non_snake_case)]
-						mod #mod_name_ident {
-							extern crate pwasm_ethereum;
-							extern crate pwasm_abi;
-							use pwasm_abi::types::*;
-							use #name_ident_use;
-							#endpoint
-						}
-						pub use #endpoint_use;
-					};
-					generated.parse().expect("Failed to parse generated input")
-				},
-				2 => {
-					let client_name = args.get(1).expect("Failed to parse an client name argument");
-					let endpoint = generate_eth_endpoint(&endpoint_name, &intf);
-					let client = generate_eth_client(client_name, &intf);
-					let endpoint_use: syn::Ident = format!("self::{}::{}", &mod_name, &endpoint_name).into();
-					let client_use: syn::Ident = format!("self::{}::{}", &mod_name, &client_name).into();
-					let generated = quote! {
-						#intf
-						#[allow(non_snake_case)]
-						mod #mod_name_ident {
-							extern crate pwasm_ethereum;
-							extern crate pwasm_abi;
-							use pwasm_abi::types::*;
-							use #name_ident_use;
-							#endpoint
-							#client
-						}
-						pub use #endpoint_use;
-						pub use #client_use;
-					};
-					generated.parse().expect("Failed to parse generated input")
-				},
-				_ => { unreachable!(); }
-			}
-		}
-		len => {
-			panic!("eth_abi marco takes one or two comma-separated arguments, passed {}", len);
+	output.into()
+}
+
+/// Implementation of `eth_abi`.
+///
+/// This convenience function is mainly used to better handle the results of token stream.
+fn impl_eth_abi(args: syn::AttributeArgs, input: syn::Item) -> Result<proc_macro2::TokenStream> {
+	let args = Args::from_attribute_args(args)?;
+	let intf = items::Interface::from_item(input);
+
+	write_json_abi(&intf)?;
+
+	match args.client_name() {
+		None => generate_eth_endpoint_wrapper(&intf, args.endpoint_name()),
+		Some(client_name) => {
+			generate_eth_endpoint_and_client_wrapper(&intf, args.endpoint_name(), client_name)
 		}
 	}
 }
 
-fn write_json_abi(intf: &items::Interface) {
-	use std::fs;
-	use std::path::PathBuf;
-	use std::env;
+/// Generates the eth abi code in case of a single provided endpoint.
+fn generate_eth_endpoint_wrapper(
+	intf: &items::Interface,
+	endpoint_name: &str,
+) -> Result<proc_macro2::TokenStream> {
+	// FIXME: Code duplication with `generate_eth_endpoint_and_client_wrapper`
+	//        We might want to fix this, however it is not critical.
+	//        >>>
+	let name_ident_use = syn::Ident::new(intf.name(), Span::call_site());
+	let mod_name = format!("pwasm_abi_impl_{}", &intf.name().clone());
+	let mod_name_ident = syn::Ident::new(&mod_name, Span::call_site());
+	// FIXME: <<<
 
-	let mut target = PathBuf::from(env::var("CARGO_TARGET_DIR").unwrap_or(".".to_owned()));
-	target.push("target");
-	target.push("json");
-	fs::create_dir_all(&target).expect("failed to create json directory");
-	target.push(&format!("{}.json", intf.name()));
+	let endpoint_toks = generate_eth_endpoint(endpoint_name, intf);
+	let endpoint_ident = syn::Ident::new(endpoint_name, Span::call_site());
 
-	let mut f = fs::File::create(target).expect("failed to write json");
-	let abi: json::Abi = intf.into();
-	serde_json::to_writer_pretty(&mut f, &abi).expect("failed to write json");
+	Ok(quote! {
+		#intf
+		#[allow(non_snake_case)]
+		mod #mod_name_ident {
+			extern crate pwasm_ethereum;
+			extern crate pwasm_abi;
+			use pwasm_abi::types::*;
+			use super::#name_ident_use;
+			#endpoint_toks
+		}
+		pub use self::#mod_name_ident::#endpoint_ident;
+	})
 }
 
-fn generate_eth_client(client_name: &str, intf: &items::Interface) -> quote::Tokens {
+/// Generates the eth abi code in case of a provided endpoint and client.
+fn generate_eth_endpoint_and_client_wrapper(
+	intf: &items::Interface,
+	endpoint_name: &str,
+	client_name: &str,
+) -> Result<proc_macro2::TokenStream> {
+
+	// FIXME: Code duplication with `generate_eth_endpoint_and_client_wrapper`
+	//        We might want to fix this, however it is not critical.
+	//        >>>
+	let name_ident_use = syn::Ident::new(intf.name(), Span::call_site());
+	let mod_name = format!("pwasm_abi_impl_{}", &intf.name().clone());
+	let mod_name_ident = syn::Ident::new(&mod_name, Span::call_site());
+	// FIXME: <<<
+
+	let endpoint_toks = generate_eth_endpoint(endpoint_name, &intf);
+	let client_toks = generate_eth_client(client_name, &intf);
+	let endpoint_name_ident = syn::Ident::new(endpoint_name, Span::call_site());
+	let client_name_ident = syn::Ident::new(&client_name, Span::call_site());
+
+	Ok(quote! {
+		#intf
+		#[allow(non_snake_case)]
+		mod #mod_name_ident {
+			extern crate pwasm_ethereum;
+			extern crate pwasm_abi;
+			use pwasm_abi::types::*;
+			use super::#name_ident_use;
+			#endpoint_toks
+			#client_toks
+		}
+		pub use self::#mod_name_ident::#endpoint_name_ident;
+		pub use self::#mod_name_ident::#client_name_ident;
+	})
+}
+
+fn generate_eth_client(client_name: &str, intf: &items::Interface) -> proc_macro2::TokenStream {
 	let client_ctor = intf.constructor().map(
 		|signature| utils::produce_signature(
 			&signature.name,
@@ -131,18 +225,20 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> quote::Tok
 		)
 	);
 
-	let calls: Vec<quote::Tokens> = intf.items().iter().filter_map(|item| {
+	let calls: Vec<proc_macro2::TokenStream> = intf.items().iter().filter_map(|item| {
 		match *item {
 			Item::Signature(ref signature)  => {
-				let hash_literal = syn::Lit::Int(signature.hash as u64, syn::IntTy::U32);
-				let argument_push: Vec<quote::Tokens> = utils::iter_signature(&signature.method_sig)
+				let hash_literal = syn::Lit::Int(
+					syn::LitInt::new(signature.hash as u64, syn::IntSuffix::U32, Span::call_site()));
+				let argument_push: Vec<proc_macro2::TokenStream> = utils::iter_signature(&signature.method_sig)
 					.map(|(pat, _)| quote! { sink.push(#pat); })
 					.collect();
-				let argument_count_literal = syn::Lit::Int(argument_push.len() as u64, syn::IntTy::Usize);
+				let argument_count_literal = syn::Lit::Int(
+					syn::LitInt::new(argument_push.len() as u64, syn::IntSuffix::Usize, Span::call_site()));
 
 				let size_hint = signature.size_hint.unwrap_or(32);
 				let result_instance = match signature.method_sig.decl.output {
-					syn::FunctionRetTy::Default => quote!{
+					syn::ReturnType::Default => quote!{
 						let mut result = Vec::new();
 					},
 					syn::FunctionRetTy::Ty(_) => quote!{
@@ -151,11 +247,13 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> quote::Tok
 				};
 
 				let result_pop = match signature.method_sig.decl.output {
-					syn::FunctionRetTy::Default => None,
-					syn::FunctionRetTy::Ty(_) => Some(quote!{
-						let mut stream = pwasm_abi::eth::Stream::new(&result);
-						stream.pop().expect("failed decode call output")
-					}),
+					syn::ReturnType::Default => None,
+					syn::ReturnType::Type(_, _) => Some(
+						quote!{
+							let mut stream = pwasm_abi::eth::Stream::new(&result);
+							stream.pop().expect("failed decode call output")
+						}
+					),
 				};
 
 				Some(utils::produce_signature(
@@ -197,8 +295,8 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> quote::Tok
 		}
 	}).collect();
 
-	let client_ident: syn::Ident = client_name.to_string().into();
-	let name_ident: syn::Ident = intf.name().clone().into();
+	let client_ident = syn::Ident::new(client_name, Span::call_site());
+	let name_ident = syn::Ident::new(intf.name(), Span::call_site());
 
 	quote! {
 		pub struct #client_ident {
@@ -234,16 +332,22 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> quote::Tok
 	}
 }
 
-fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> quote::Tokens {
-	let check_value_code = quote! {
-		if pwasm_ethereum::value() > 0.into() {
-			panic!("Unable to accept value in non-payable constructor call");
+fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_macro2::TokenStream {
+	fn check_value_if_payable_toks(is_payable: bool) -> proc_macro2::TokenStream {
+		if is_payable {
+			return quote!{}
 		}
-	};
+		quote!{
+			if pwasm_ethereum::value() > 0.into() {
+				panic!("Unable to accept value in non-payable constructor call");
+			}
+		}
+	}
+
 	let ctor_branch = intf.constructor().map(
 		|signature| {
 			let arg_types = signature.arguments.iter().map(|&(_, ref ty)| quote! { #ty });
-			let check_value_if_payable = if signature.is_payable { quote! {} } else { quote! {#check_value_code} };
+			let check_value_if_payable = check_value_if_payable_toks(signature.is_payable);
 			quote! {
 				#check_value_if_payable
 				let mut stream = pwasm_abi::eth::Stream::new(payload);
@@ -254,15 +358,17 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> quote:
 		}
 	);
 
-	let branches: Vec<quote::Tokens> = intf.items().iter().filter_map(|item| {
+	let branches: Vec<proc_macro2::TokenStream> = intf.items().iter().filter_map(|item| {
 		match *item {
 			Item::Signature(ref signature)  => {
-				let hash_literal = syn::Lit::Int(signature.hash as u64, syn::IntTy::U32);
+				let hash_literal = syn::Lit::Int(
+					syn::LitInt::new(signature.hash as u64, syn::IntSuffix::U32, Span::call_site()));
 				let ident = &signature.name;
 				let arg_types = signature.arguments.iter().map(|&(_, ref ty)| quote! { #ty });
-				let check_value_if_payable = if signature.is_payable { quote! {} } else { quote! {#check_value_code} };
+				let check_value_if_payable = check_value_if_payable_toks(signature.is_payable);
 				if !signature.return_types.is_empty() {
-					let return_count_literal = syn::Lit::Int(signature.return_types.len() as u64, syn::IntTy::Usize);
+					let return_count_literal = syn::Lit::Int(
+						syn::LitInt::new(signature.return_types.len() as u64, syn::IntSuffix::Usize, Span::call_site()));
 					Some(quote! {
 						#hash_literal => {
 							#check_value_if_payable
@@ -292,8 +398,8 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> quote:
 		}
 	}).collect();
 
-	let endpoint_ident: syn::Ident = endpoint_name.to_string().into();
-	let name_ident: syn::Ident = intf.name().clone().into();
+	let endpoint_ident = syn::Ident::new(endpoint_name, Span::call_site());
+	let name_ident = syn::Ident::new(&intf.name(), Span::call_site());
 
 	quote! {
 		pub struct #endpoint_ident<T: #name_ident> {

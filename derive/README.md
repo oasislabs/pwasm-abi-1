@@ -1,7 +1,5 @@
-# pwasm-abi
-Derivation macros for traits to bind dispatch and invoke using `pwasm-abi`.
-
-[![Build Status](https://travis-ci.org/paritytech/pwasm-abi.svg?branch=master)](https://travis-ci.org/paritytech/pwasm-abi)
+# owasm-abi
+Derivation macros for traits to bind dispatch and invoke using `owasm-abi`.
 
 [Documentation](https://paritytech.github.io/pwasm-abi/pwasm_abi/)
 
@@ -9,11 +7,11 @@ Derivation macros for traits to bind dispatch and invoke using `pwasm-abi`.
 
 ```toml
 [dependencies]
-pwasm-abi-derive = "0.1"
+owasm-abi-derive = "0.1"
 ```
 # License
 
-`pwasm-abi-derive` is primarily distributed under the terms of both the MIT
+`owasm-abi-derive` is primarily distributed under the terms of both the MIT
 license and the Apache License (Version 2.0), at your choice.
 
 See LICENSE-APACHE, and LICENSE-MIT for details.

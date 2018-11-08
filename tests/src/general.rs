@@ -1,8 +1,8 @@
 
 use pwasm_test::{ext_get, ext_reset, Endpoint};
-use pwasm_abi::eth::EndpointInterface;
-use pwasm_abi_derive::eth_abi;
-use pwasm_abi::types::*;
+use owasm_abi::eth::EndpointInterface;
+use owasm_abi_derive::eth_abi;
+use owasm_abi::types::*;
 
 #[eth_abi(TestEndpoint, Client)]
 pub trait TestContract {
@@ -148,7 +148,7 @@ fn boo_dispatch() {
 
 #[allow(dead_code)]
 mod contract {
-	use pwasm_abi_derive::eth_abi;
+	use owasm_abi_derive::eth_abi;
 
 	#[eth_abi(EmptyEndpoint, _EmptyClient)]
 	trait EmptyContract {

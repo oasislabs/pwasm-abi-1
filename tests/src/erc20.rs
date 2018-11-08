@@ -2,8 +2,8 @@ mod contract {
 	#![allow(non_snake_case)]
 	#![allow(dead_code)]
 
-	use pwasm_abi_derive::eth_abi;
-	use pwasm_abi::types::*;
+	use owasm_abi_derive::eth_abi;
+	use owasm_abi::types::*;
 
 	use std::collections::HashMap;
 
@@ -44,8 +44,8 @@ mod contract {
 	}
 }
 
-use pwasm_abi::eth::EndpointInterface;
-use pwasm_abi::types::*;
+use owasm_abi::eth::EndpointInterface;
+use owasm_abi::types::*;
 
 // balanceOf(0x0)
 const SAMPLE1: &'static [u8] = &[

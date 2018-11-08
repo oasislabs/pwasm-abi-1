@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use pwasm_abi::eth::EndpointInterface;
-use pwasm_abi_derive::eth_abi;
+use owasm_abi::eth::EndpointInterface;
+use owasm_abi_derive::eth_abi;
 
 #[eth_abi(TupleReturnEndpoint, TupleReturnClient)]
 pub trait TupleReturnContract {

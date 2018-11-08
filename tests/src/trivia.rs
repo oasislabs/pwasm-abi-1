@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 // Minimal interface test/example
 
-use pwasm_abi_derive::eth_abi;
+use owasm_abi_derive::eth_abi;
 
 #[eth_abi(Endpoint, Client)]
 pub trait Contract {

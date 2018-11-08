@@ -1,13 +1,9 @@
 use {quote, syn, utils};
 
-#[derive(Debug)]
-pub struct Interface {
-	name: String,
-	constructor: Option<Signature>,
-	items: Vec<Item>,
-}
+use quote::TokenStreamExt;
+use proc_macro2::{self, Span};
 
-#[derive(Debug)]
+/// Represents an event of a smart contract.
 pub struct Event {
 	/// The name of the event.
 	pub name: syn::Ident,
@@ -27,7 +23,11 @@ pub struct Event {
 	pub data: Vec<(syn::Pat, syn::Type)>,
 }
 
-#[derive(Clone, Debug)]
+/// Represents a function declared in the contracts interface.
+/// 
+/// Since this is basically just the declaration of such as function
+/// without implementation we refer to it as being a signature.
+#[derive(Clone)]
 pub struct Signature {
 	/// The name of this signature.
 	pub name: syn::Ident,
@@ -53,10 +53,9 @@ pub struct Signature {
 	/// 
 	/// Only a payable signature can be invoked with value.
 	pub is_payable: bool,
-	pub size_hint: Option<usize>,
 }
 
-#[derive(Debug)]
+/// An item within a contract trait.
 pub enum Item {
 	/// An invokable function.
 	Signature(Signature),
@@ -145,15 +144,21 @@ impl Interface {
 	}
 }
 
-fn into_signature(ident: syn::Ident, method_sig: syn::MethodSig, is_constant: bool, is_payable: bool, size_hint: Option<usize>) -> Signature {
-	let arguments: Vec<(syn::Pat, syn::Ty)> = utils::iter_signature(&method_sig).collect();
-	let canonical = utils::canonical(&ident, &method_sig);
-	let return_types: Vec<syn::Ty> = match method_sig.decl.output {
-		syn::FunctionRetTy::Default => Vec::new(),
-		syn::FunctionRetTy::Ty(ref ty) => {
-			match ty {
-				syn::Ty::Tup(ref tys) => {
-					tys.clone()
+fn into_signature(
+	ident: syn::Ident,
+	method_sig: syn::MethodSig,
+	is_constant: bool,
+	is_payable: bool
+)
+	-> Signature
+{
+	let arguments: Vec<(syn::Pat, syn::Type)> = utils::iter_signature(&method_sig).collect();
+	let return_types: Vec<syn::Type> = match method_sig.decl.output.clone() {
+		syn::ReturnType::Default => Vec::new(),
+		syn::ReturnType::Type(_, ty) => {
+			match *ty {
+				syn::Type::Tuple(tuple_type) => {
+					tuple_type.elems.into_iter().collect()
 				},
 				ty => vec![ty],
 			}
@@ -171,7 +176,6 @@ fn into_signature(ident: syn::Ident, method_sig: syn::MethodSig, is_constant: bo
 		return_types: return_types,
 		is_constant: is_constant,
 		is_payable: is_payable,
-		size_hint: size_hint,
 	}
 }
 
@@ -182,21 +186,6 @@ fn has_attribute(attrs: &[syn::Attribute], name: &str) -> bool {
 		};
 		false
 	})
-}
-
-fn get_attribute(attrs: &[syn::Attribute], name: &str) -> Option<syn::Lit> {
-	for attr in attrs.iter() {
-		match attr.value {
-			syn::MetaItem::NameValue(ref ident, ref lit) => {
-				if ident.as_ref() != name {
-					continue;
-				}
-				return Some(lit.clone());
-			},
-			_ => continue
-		}
-	}
-	None
 }
 
 impl Item {
@@ -241,40 +230,13 @@ impl Item {
 	}
 
 	pub fn from_trait_item(source: syn::TraitItem) -> Self {
-		let ident = source.ident;
-		let node = source.node;
-		let attrs = source.attrs;
-		match node {
-			syn::TraitItemKind::Method(method_sig, None) => {
-				if has_attribute(&attrs, "event") {
-					assert!(ident.as_ref() != "constructor", "Constructor can't be event");
-					let (indexed, non_indexed) = utils::iter_signature(&method_sig)
-						.partition(|&(ref pat, _)| quote! { #pat }.to_string().starts_with("indexed_"));
-					let canonical = utils::canonical(&ident, &method_sig);
-
-					let event = Event {
-						name: ident,
-						canonical: canonical,
-						indexed: indexed,
-						data: non_indexed,
-						method_sig: method_sig,
-					};
-
-					Item::Event(event)
-				} else {
-					let constant = has_attribute(&attrs, "constant");
-					let payable = has_attribute(&attrs, "payable");
-					let size_hint = match get_attribute(&attrs, "size_hint") {
-						Some(syn::Lit::Int(val, _)) => Some(val as usize),
-						_ => None,
-					};
-					assert!(!(constant && payable),
-						format!("Method {} cannot be constant and payable at the same time", ident.to_string()
-					));
-					assert!(!(ident.as_ref() == "constructor" && constant), "Constructor can't be constant");
-					Item::Signature(
-						into_signature(ident, method_sig, constant, payable, size_hint)
-					)
+		match source {
+			syn::TraitItem::Method(method_trait_item) => {
+				if method_trait_item.default.is_some() {
+					return Item::Other(syn::TraitItem::Method(method_trait_item))
+				}
+				if has_attribute(&method_trait_item.attrs, "event") {
+					return Self::event_from_trait_item(method_trait_item.sig)
 				}
 				Self::signature_from_trait_item(method_trait_item)
 			},

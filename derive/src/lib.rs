@@ -1,5 +1,6 @@
 //! Ethereum (Solidity) derivation for rust contracts (compiled to wasm or otherwise)
-#![recursion_limit="128"]
+#![feature(use_extern_macros)]
+#![recursion_limit = "128"]
 #![deny(unused)]
 
 extern crate proc_macro;
@@ -236,13 +237,12 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> proc_macro
 				let argument_count_literal = syn::Lit::Int(
 					syn::LitInt::new(argument_push.len() as u64, syn::IntSuffix::Usize, Span::call_site()));
 
-				let size_hint = signature.size_hint.unwrap_or(32);
 				let result_instance = match signature.method_sig.decl.output {
 					syn::ReturnType::Default => quote!{
 						let mut result = Vec::new();
 					},
-					syn::FunctionRetTy::Ty(_) => quote!{
-						let mut result = [0; #size_hint];
+					syn::ReturnType::Type(_, _) => quote!{
+						let mut result = [0u8; 32];
 					},
 				};
 
@@ -274,7 +274,8 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> proc_macro
 						sink.drain_to(&mut payload);
 
 						#result_instance
-						pwasm_ethereum::call(self.gas.unwrap_or(10000000), &self.address, self.value.clone().unwrap_or(U256::zero()), &payload, &mut result[..])
+
+						pwasm_ethereum::call(self.gas.unwrap_or(200000), &self.address, self.value.clone().unwrap_or(U256::zero()), &payload, &mut result[..])
 							.expect("Call failed; todo: allow handling inside contracts");
 
 						#result_pop

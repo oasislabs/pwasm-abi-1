@@ -1,11 +1,11 @@
 [package]
-name = "pwasm-abi-derive"
+name = "owasm-abi-derive"
 version = "0.1.9"
-authors = ["NikVolf <nikvolf@gmail.com>"]
+authors = ["NikVolf <nikvolf@gmail.com>", "Oasis Labs <info@oasislabs.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/paritytech/pwasm-abi"
-homepage = "https://github.com/paritytech/pwasm-abi"
+repository = "https://github.com/oasislabs/owasm-abi"
+homepage = "https://github.com/oasislabs/owasm-abi"
 documentation = "https://paritytech.github.io/pwasm-abi/pwasm_abi/"
 description = "Rust WebAssembly Contracts Abi (derive macros)"
 keywords = ["wasm", "parity", "webassembly", "blockchain", "abi"]

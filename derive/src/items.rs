@@ -273,14 +273,14 @@ impl quote::ToTokens for Item {
 							quote! {
 								let topics = &[
 									[#(#hash_bytes),*].into(),
-									#(::pwasm_abi::eth::AsLog::as_log(&#indexed_pats)),*
+									#(::owasm_abi::eth::AsLog::as_log(&#indexed_pats)),*
 								];
 
-								let mut sink = ::pwasm_abi::eth::Sink::new(#data_pats_count_lit);
+								let mut sink = ::owasm_abi::eth::Sink::new(#data_pats_count_lit);
 								#(sink.push(#data_pats));*;
 								let payload = sink.finalize_panicking();
 
-								::pwasm_ethereum::log(topics, &payload);
+								::owasm_ethereum::log(topics, &payload);
 							}
 						}
 					)

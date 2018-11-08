@@ -6,10 +6,10 @@
 #![cfg(test)]
 
 extern crate pwasm_std;
-extern crate pwasm_ethereum;
+extern crate owasm_ethereum;
 extern crate pwasm_test;
-extern crate pwasm_abi;
-extern crate pwasm_abi_derive;
+extern crate owasm_abi;
+extern crate owasm_abi_derive;
 
 mod erc20;
 mod arrays;

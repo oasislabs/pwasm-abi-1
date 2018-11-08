@@ -1,15 +1,15 @@
 [package]
-name = "pwasm-abi-tests"
+name = "owasm-abi-tests"
 version = "0.0.0"
 authors = ["NikVolf <nikvolf@gmail.com>"]
 
 [dependencies]
 pwasm-std = "0.10"
 pwasm-test = { git = "https://github.com/paritytech/pwasm-test", optional = true }
-pwasm-abi = { path = "..", default-features=false }
-pwasm-abi-derive = { path = "../derive" }
-pwasm-ethereum = "0.6.3"
+owasm-abi = { path = "..", default-features=false }
+owasm-abi-derive = { path = "../derive" }
+owasm-ethereum = "0.7.0"
 
 [features]
 default = []
-test = ["pwasm-test", "pwasm-std/std", "pwasm-ethereum/std"]
+test = ["pwasm-test", "pwasm-std/std", "owasm-ethereum/std"]

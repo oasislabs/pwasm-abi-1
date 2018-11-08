@@ -1,7 +1,7 @@
 # owasm-abi
 Parity WASM Abi (Legacy and new)
 
-[Documentation](https://paritytech.github.io/pwasm-abi/owasm_abi/)
+[Documentation](https://paritytech.github.io/pwasm-abi/pwasm_abi/)
 
 # Add dependency
 

@@ -456,3 +456,84 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_m
 		}
 	}
 }
+
+macro_rules! format_ident {
+  ($ident:expr, $fstr:expr) => {
+    syn::Ident::new(&format!($fstr, $ident), $ident.span())
+  };
+}
+
+#[proc_macro_attribute]
+pub fn contract(
+	_args: proc_macro::TokenStream,
+	input: proc_macro::TokenStream
+) -> proc_macro::TokenStream {
+  let input = parse_macro_input!(input as syn::ItemTrait);
+
+  let trait_name = format_ident!(input.ident, "{}Abi");
+  let contract_ep = format_ident!(input.ident, "{}Endpoint");
+  let contract_client = format_ident!(input.ident, "{}Client");
+  let contract_struct = format_ident!(input.ident, "{}Inst");
+
+  let (method_sigs, method_impls):
+	  (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) =
+	input
+	.items
+	.iter()
+	.filter_map(|itm| match itm {
+	  syn::TraitItem::Method(m) => {
+		let msig = &m.sig;
+		let mattrs = &m.attrs;
+
+		let sig = quote! {
+		  #(#mattrs)*
+		  #msig;
+		};
+
+		let body = match m.default {
+		  Some(ref body) => quote! {
+			#msig {
+			  #body
+			}
+		  },
+		  None => quote! { unimplemented!() },
+		};
+
+		Some((sig, body))
+	  }
+	  _ => None,
+	}).unzip();
+
+  proc_macro::TokenStream::from(quote! {
+	extern crate owasm_abi;
+	extern crate owasm_abi_derive;
+	extern crate owasm_ethereum;
+
+	use owasm_abi::eth::EndpointInterface;
+	use owasm_abi::types::*;
+	use owasm_abi_derive::eth_abi;
+
+	#[eth_abi(#contract_ep, #contract_client)]
+	pub trait #trait_name {
+	  #(#method_sigs)*
+	}
+
+	pub struct #contract_struct;
+
+	impl #trait_name for #contract_struct {
+	  #(#method_impls)*
+	}
+
+	#[no_mangle]
+	pub fn deploy() {
+	  let mut endpoint = #contract_ep::new(#contract_struct {});
+	  owasm_ethereum::ret(&endpoint.dispatch(&owasm_ethereum::input()));
+	}
+
+	#[no_mangle]
+	pub fn call() {
+	  let mut endpoint = #contract_ep::new(#contract_struct {});
+	  endpoint.dispatch_ctor(&owasm_ethereum::input());
+	}
+  })
+}

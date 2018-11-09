@@ -26,6 +26,8 @@ pub mod types {
 	pub use uint::U256;
 }
 
+pub mod macros;
+
 mod lib {
 
 	mod core {

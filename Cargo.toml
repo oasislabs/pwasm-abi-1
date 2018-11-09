@@ -1,7 +1,7 @@
 [package]
 name = "owasm-abi"
 version = "0.1.12"
-authors = ["NikVolf <nikvolf@gmail.com>", "Oasis Labs <info@oasislabs.com"]
+authors = ["NikVolf <nikvolf@gmail.com>", "Oasis Labs <info@oasislabs.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/oasislabs/owasm-abi"

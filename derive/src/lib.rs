@@ -470,7 +470,7 @@ pub fn contract(
 ) -> proc_macro::TokenStream {
   let input = parse_macro_input!(input as syn::ItemTrait);
 
-  let trait_name = format_ident!(input.ident, "{}Abi");
+  let trait_name = format_ident!(input.ident, "{}");
   let contract_ep = format_ident!(input.ident, "{}Endpoint");
   let contract_client = format_ident!(input.ident, "{}Client");
   let contract_struct = format_ident!(input.ident, "{}Inst");

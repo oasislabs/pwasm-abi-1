@@ -529,7 +529,7 @@ pub fn contract(
 	  let mut endpoint = #contract_ep::new(#contract_struct {});
 	  endpoint.dispatch_ctor(&owasm_ethereum::input());
 	}
-	  
+
 	#[no_mangle]
 	pub fn call() {
 	  let mut endpoint = #contract_ep::new(#contract_struct {});

@@ -527,13 +527,13 @@ pub fn contract(
 	#[no_mangle]
 	pub fn deploy() {
 	  let mut endpoint = #contract_ep::new(#contract_struct {});
-	  owasm_ethereum::ret(&endpoint.dispatch(&owasm_ethereum::input()));
+	  endpoint.dispatch_ctor(&owasm_ethereum::input());
 	}
-
+	  
 	#[no_mangle]
 	pub fn call() {
 	  let mut endpoint = #contract_ep::new(#contract_struct {});
-	  endpoint.dispatch_ctor(&owasm_ethereum::input());
+	  owasm_ethereum::ret(&endpoint.dispatch(&owasm_ethereum::input()));
 	}
   })
 }

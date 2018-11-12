@@ -5,7 +5,7 @@
 #![feature(proc_macro_hygiene)]
 #![cfg(test)]
 
-extern crate pwasm_std;
+extern crate owasm_std;
 extern crate owasm_ethereum;
 extern crate pwasm_test;
 extern crate owasm_abi;

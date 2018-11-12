@@ -3,7 +3,7 @@
 use owasm_abi_derive::eth_abi;
 use owasm_abi::eth::EndpointInterface;
 
-use pwasm_test::{ext_reset};
+use owasm_test::{ext_reset};
 
 const PAYLOAD_BAZ: &[u8] = &[
 	0xcd, 0xcd, 0x77, 0xc0,

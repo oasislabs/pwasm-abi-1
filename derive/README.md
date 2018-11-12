@@ -1,7 +1,7 @@
 # owasm-abi
 Derivation macros for traits to bind dispatch and invoke using `owasm-abi`.
 
-[Documentation](https://paritytech.github.io/pwasm-abi/pwasm_abi/)
+[Documentation](https://docs.rs/owasm-abi-derive/)
 
 # Add dependency
 

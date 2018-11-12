@@ -1,7 +1,7 @@
 # owasm-abi
 Derivation macros for traits to bind dispatch and invoke using `owasm-abi`.
 
-[Documentation](https://docs.rs/owasm-abi-derive/)
+[Documentation](https://docs.rs/crate/owasm-abi-derive)
 
 # Add dependency
 

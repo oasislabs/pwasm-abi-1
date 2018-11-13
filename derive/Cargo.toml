@@ -8,7 +8,7 @@ repository = "https://github.com/oasislabs/owasm-abi"
 homepage = "https://github.com/oasislabs/owasm-abi"
 documentation = "https://docs.rs/crate/owasm-abi-derive"
 description = "Rust WebAssembly Contracts ABI (derive macros)"
-keywords = ["wasm", "oasis", "oasislabs", "parity", "webassembly", "blockchain", "abi"]
+keywords = ["wasm", "oasis", "webassembly", "blockchain", "abi"]
 categories = ["no-std", "embedded"]
 
 [profile.release]

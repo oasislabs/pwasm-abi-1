@@ -1,6 +1,6 @@
 [package]
 name = "owasm-abi"
-version = "0.1.12"
+version = "0.1.13"
 authors = ["NikVolf <nikvolf@gmail.com>", "Oasis Labs <info@oasislabs.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
@@ -16,7 +16,7 @@ exclude = [ "tests/*", "derive/*" ]
 panic = "abort"
 
 [dependencies]
-pwasm-std = "0.10"
+owasm-std = "0.10"
 
 [dependencies.uint]
 version = "0.4"
@@ -31,5 +31,5 @@ hex-literal = "0.1"
 
 [features]
 default = ["std"]
-std = ["uint/std", "pwasm-std/std"]
+std = ["uint/std", "owasm-std/std"]
 strict = []

@@ -7,7 +7,7 @@
 
 extern crate byteorder;
 extern crate uint;
-extern crate pwasm_std;
+extern crate owasm_std;
 
 #[cfg(test)]
 #[macro_use]
@@ -21,8 +21,8 @@ pub mod eth;
 
 /// Custom types which AbiType supports
 pub mod types {
-	pub use pwasm_std::Vec;
-	pub use pwasm_std::hash::*;
+	pub use owasm_std::Vec;
+	pub use owasm_std::hash::*;
 	pub use uint::U256;
 }
 

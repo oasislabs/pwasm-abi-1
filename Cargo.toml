@@ -16,7 +16,7 @@ exclude = [ "tests/*", "derive/*" ]
 panic = "abort"
 
 [dependencies]
-owasm-std = "0.10"
+owasm-std = { git = "https://github.com/oasislabs/owasm-std", branch = "0.10" }
 
 [dependencies.uint]
 version = "0.4"

@@ -1,6 +1,6 @@
 [package]
 name = "owasm-abi"
-version = "0.1.13"
+version = "0.1.14"
 authors = ["NikVolf <nikvolf@gmail.com>", "Oasis Labs <info@oasislabs.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
@@ -16,7 +16,7 @@ exclude = [ "tests/*", "derive/*" ]
 panic = "abort"
 
 [dependencies]
-owasm-std = "0.10"
+owasm-std = "0.13"
 
 [dependencies.uint]
 version = "0.4"

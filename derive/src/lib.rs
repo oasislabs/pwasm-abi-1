@@ -508,6 +508,7 @@ pub fn contract(
 	extern crate owasm_abi;
 	extern crate owasm_abi_derive;
 	extern crate owasm_ethereum;
+	extern crate owasm_std;
 
 	use owasm_abi::eth::EndpointInterface;
 	use owasm_abi::types::*;
@@ -526,12 +527,16 @@ pub fn contract(
 
 	#[no_mangle]
 	pub fn deploy() {
+	  #[cfg(feature = "debug")]
+	  std::panic::set_hook(Box::new(|panic_info| owasm_std::logger::debug(&format!("PANIC {}", panic_info))));
 	  let mut endpoint = #contract_ep::new(#contract_struct {});
 	  endpoint.dispatch_ctor(&owasm_ethereum::input());
 	}
 
 	#[no_mangle]
 	pub fn call() {
+	  #[cfg(feature = "debug")]
+	  std::panic::set_hook(Box::new(|panic_info| owasm_std::logger::debug(&format!("PANIC {}", panic_info))));
 	  let mut endpoint = #contract_ep::new(#contract_struct {});
 	  owasm_ethereum::ret(&endpoint.dispatch(&owasm_ethereum::input()));
 	}

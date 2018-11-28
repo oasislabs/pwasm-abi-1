@@ -1,5 +1,4 @@
 //! Ethereum (Solidity) derivation for rust contracts (compiled to wasm or otherwise)
-#![feature(extern_prelude)]
 #![recursion_limit = "128"]
 #![deny(unused)]
 
@@ -483,20 +482,29 @@ pub fn contract(
 	.filter_map(|itm| match itm {
 	  syn::TraitItem::Method(m) => {
 		let msig = &m.sig;
-		let mattrs = &m.attrs;
+		let bad_self_ref = format!(
+		  "ABI function `{}` must have `&mut self` as its first argument.",
+		  msig.ident.to_string());
+		match msig.decl.inputs[0] {
+		  syn::FnArg::SelfRef(ref selfref) => {
+		    if selfref.mutability.is_none() {
+		      panic!(bad_self_ref)
+		    }
+		  }
+		  _ => panic!(bad_self_ref)
+		}
 
+		let mattrs = &m.attrs;
 		let sig = quote! {
 		  #(#mattrs)*
 		  #msig;
 		};
 
 		let body = match m.default {
-		  Some(ref body) => quote! {
-			#msig {
-			  #body
-			}
+		  Some(ref mbody) => {
+		    quote! { #msig { #mbody } }
 		  },
-		  None => quote! { unimplemented!() },
+		  None => quote!{}
 		};
 
 		Some((sig, body))

@@ -6,9 +6,16 @@ edition = "2018"
 
 [dependencies]
 clap = "2.24"
+mustache = "0.9"
 proc-macro2 = "0.4"
 quote = "0.6"
 syn = "0.15"
 
 [features]
 default = ["syn/full", "syn/extra-traits"]
+
+[lib]
+
+[[bin]]
+name = "owasm-derive"
+path = "src/main.rs"

@@ -1,5 +1,6 @@
 #![recursion_limit = "192"]
 
+extern crate mustache;
 extern crate proc_macro2;
 #[macro_use]
 extern crate quote;
@@ -7,16 +8,17 @@ extern crate clap;
 extern crate owasm_abi_cli;
 extern crate syn;
 
-use std::fs::{self, File};
-use std::io::Read;
+use std::fs;
+use std::path::Path;
 
 use clap::{App, Arg};
+use mustache::MapBuilder;
 use owasm_abi_cli::rustfmt;
 use proc_macro2::{Group, Span, TokenStream};
 use syn::punctuated::Punctuated;
 use syn::token::{Bracket, Colon2, Comma, Pound};
 use syn::AttrStyle::Outer;
-use syn::{Attribute, FnArg, Ident, MethodSig, Pat, Path, PathArguments, PathSegment};
+use syn::{Attribute, FnArg, Ident, MethodSig, Pat, Path as SynPath, PathArguments, PathSegment};
 
 macro_rules! format_ident {
     ($ident:expr, $fstr:expr) => {
@@ -27,16 +29,21 @@ macro_rules! format_ident {
 fn main() {
     let matches = App::new("owasm-derive")
         .arg(
-            Arg::with_name("code")
+            Arg::with_name("crate")
                 .index(1)
                 .required(true)
-                .help("Path to contract code"),
+                .help("Path to contract crate"),
         )
         .get_matches();
-    let mut file = File::open(matches.value_of("code").unwrap()).unwrap();
-    let mut code = String::new();
-    file.read_to_string(&mut code).unwrap();
 
+    let crate_path = Path::new(matches.value_of("crate").unwrap());
+    let lib_path = crate_path.join("src/lib.rs").as_path().to_owned();
+    let cargo_path = crate_path.join("Cargo.toml").as_path().to_owned();
+
+    let code = fs::read_to_string(&lib_path).expect(&format!(
+        "Error reading {:?}. Please make sure that the file exists.",
+        lib_path
+    ));
     let ast = syn::parse_file(&code).unwrap();
 
     let mut punctuated: Punctuated<PathSegment, Colon2> = Punctuated::new();
@@ -53,7 +60,7 @@ fn main() {
         pound_token: Pound::default(),
         style: Outer,
         bracket_token: Bracket::default(),
-        path: Path {
+        path: SynPath {
             leading_colon: None,
             segments: punctuated,
         },
@@ -182,7 +189,36 @@ fn main() {
         if !err.is_empty() {
             panic!("Failed to format the code: {}", err);
         }
-        fs::create_dir_all("generated/src").unwrap();
-        fs::write("generated/src/lib.rs", output).unwrap();
+        fs::create_dir_all(crate_path.join("generated/src").as_path()).unwrap();
+        fs::write(crate_path.join("generated/src/lib.rs").as_path(), output).unwrap();
+
+        let format_string = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("Cargo.toml.tmpl")
+                .as_path(),
+        )
+        .unwrap();
+        let cargo_string = fs::read_to_string(&cargo_path).expect(&format!(
+            "Error reading {:?}. Please make sure that the file exists.",
+            cargo_path
+        ));
+        let second_line: Vec<&str> = cargo_string
+            .lines()
+            .nth(1)
+            .unwrap()
+            .splitn(2, '=')
+            .collect();
+        if second_line[0].trim() != "name" {
+            panic!("Unexpected input. The second line of Cargo.toml should contain the name of the crate");
+        }
+        let crate_name = second_line[1].trim_matches(|c| c == ' ' || c == '\"');
+        let abi_crate_name = format!("{}_abi", crate_name);
+
+        let template = mustache::compile_str(&format_string).unwrap();
+        let data = MapBuilder::new().insert_str("name", abi_crate_name).build();
+        let mut cargo_file =
+            fs::File::create(crate_path.join("generated/Cargo.toml").as_path()).unwrap();
+
+        template.render_data(&mut cargo_file, &data).unwrap();
     }
 }

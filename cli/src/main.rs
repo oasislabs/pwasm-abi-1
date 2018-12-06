@@ -11,8 +11,8 @@ use std::io::Read;
 
 use clap::{App, Arg};
 use proc_macro2::{TokenStream, Span, Group};
-use syn::{Attribute, Path, PathArguments, ItemTrait, PathSegment, Ident};
-use syn::token::{Pound, Bracket, Colon2};
+use syn::{Attribute, Path, PathArguments, ItemTrait, PathSegment, Ident, MethodSig, Pat, FnArg};
+use syn::token::{Pound, Bracket, Colon2, Comma};
 use syn::AttrStyle::Outer;
 use syn::punctuated::Punctuated;
 
@@ -36,12 +36,11 @@ fn main() {
     let ast = syn::parse_file(&code).unwrap();
 
     let mut punctuated: Punctuated<PathSegment, Colon2>= Punctuated::new();
-    punctuated.push_value(PathSegment {
+    punctuated.push(PathSegment {
         ident: Ident::new("owasm_abi_derive", Span::call_site()),
         arguments: PathArguments::None
     });
-    punctuated.push_punct(Colon2::default());
-    punctuated.push_value(PathSegment {
+    punctuated.push(PathSegment {
         ident: Ident::new("contract", Span::call_site()),
         arguments: PathArguments::None
     });
@@ -57,7 +56,7 @@ fn main() {
         tts: TokenStream::new(),
     };
 
-    let mut traits_to_method_sigs: Vec<(&Ident, Vec<TokenStream>)> =
+    let mut traits_to_method_sigs: Vec<(&Ident, Vec<(TokenStream, &MethodSig)>)> =
         ast.items.iter().filter_map(|item| match item {
             syn::Item::Trait(m) => {
                 if m.attrs.contains(&contract_attribute) {
@@ -68,10 +67,10 @@ fn main() {
                             syn::TraitItem::Method(m) => {
                                 let msig = &m.sig;
                                 let mattrs = &m.attrs;
-                                Some(quote! {
+                                Some((quote! {
                                     #(#mattrs)*
                                     #msig;
-                                })
+                                }, msig))
                             }
                             _ => None,
                         }
@@ -90,8 +89,51 @@ fn main() {
         let contract_interface = format_ident!(trait_name, "{}Interface");
 
         let mut methods_stream = quote!();
-        for method_sig in method_sigs {
-            methods_stream.extend(method_sig);
+        let mut contract_impl_stream = quote!();
+        for (method_quote, method_sig) in method_sigs {
+            methods_stream.extend(method_quote);
+
+            let method_ident = &method_sig.ident;
+            let mut inputs_iter = method_sig.decl.inputs.iter();
+            let self_ref_check = inputs_iter.next();
+            let self_ref_error = format!("ABI function `{}` must have `&mut self` as its first argument.",
+                                         method_ident.to_string());
+            match self_ref_check {
+                Some(syn::FnArg::SelfRef(ref selfref)) => {
+                    if selfref.mutability.is_none() {
+                        panic!(self_ref_error)
+                    }
+                }
+                _ => panic!(self_ref_error)
+            }
+
+            let mut arguments_group: Punctuated<Ident, Comma> = Punctuated::new();
+            for input in inputs_iter {
+                match input {
+                    FnArg::Captured(arg_captured) => {
+                        match &arg_captured.pat {
+                            Pat::Ident(pat_ident) => {
+                                arguments_group.push(pat_ident.ident.clone());
+                            }
+                            _ => (),
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            if arguments_group.is_empty() {
+                contract_impl_stream.extend(quote! {
+                    #method_sig {
+                        self.0.#method_ident()
+                    }
+                });
+            } else {
+                contract_impl_stream.extend(quote! {
+                    #method_sig {
+                        self.0.#method_ident(#arguments_group)
+                    }
+                });
+            }
         }
         let methods_group = Group::new(proc_macro2::Delimiter::Brace, methods_stream);
         let mut trait_stream = quote! {
@@ -120,6 +162,6 @@ fn main() {
             }
         };
 
-        println!("{}", trait_stream.to_string());
+        //println!("{}", trait_stream.to_string());
     }
 }

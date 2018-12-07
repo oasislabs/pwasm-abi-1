@@ -67,7 +67,7 @@ fn main() {
         tts: TokenStream::new(),
     };
 
-    let traits_to_method_sigs: Vec<(&Ident, Vec<(TokenStream, &MethodSig)>)> = ast
+    let traits_to_method_sigs: Vec<(&Ident, Vec<(TokenStream, TokenStream, TokenStream)>)> = ast
         .items
         .iter()
         .filter_map(|item| match item {
@@ -80,15 +80,62 @@ fn main() {
                         .iter()
                         .filter_map(|item| match item {
                             syn::TraitItem::Method(m) => {
-                                let msig = &m.sig;
-                                let mattrs = &m.attrs;
-                                Some((
-                                    quote! {
-                                        #(#mattrs)*
-                                        #msig;
-                                    },
-                                    msig,
-                                ))
+                                let method_sig = &m.sig;
+                                let method_attrs = &m.attrs;
+
+                                let method_quote = quote! {
+                                    #(#method_attrs)*
+                                    #method_sig;
+                                };
+                                let method_quote_no_attrs = quote! {
+                                    #method_sig;
+                                };
+
+                                let method_ident = &method_sig.ident;
+                                let mut inputs_iter = method_sig.decl.inputs.iter();
+                                let self_ref_check = inputs_iter.next();
+                                let self_ref_error = format!(
+                                    "ABI function `{}` must have `&mut self` as its first argument.",
+                                    method_ident.to_string()
+                                );
+                                match self_ref_check {
+                                    Some(syn::FnArg::SelfRef(ref selfref)) => {
+                                        if selfref.mutability.is_none() {
+                                            panic!(self_ref_error)
+                                        }
+                                    }
+                                    _ => panic!(self_ref_error),
+                                }
+
+                                let mut arguments_list: Punctuated<Ident, Comma> = Punctuated::new();
+                                for input in inputs_iter {
+                                    match input {
+                                        FnArg::Captured(arg_captured) => match &arg_captured.pat {
+                                            Pat::Ident(pat_ident) => {
+                                                arguments_list.push(pat_ident.ident.clone());
+                                            }
+                                            _ => (),
+                                        },
+                                        _ => (),
+                                    }
+                                }
+                                if arguments_list.is_empty() {
+                                    Some((method_quote, method_quote_no_attrs,
+                                        quote! {
+                                            #method_sig {
+                                                self . 0 . #method_ident()
+                                            }
+                                        }
+                                    ))
+                                } else {
+                                    Some((method_quote, method_quote_no_attrs,
+                                        quote! {
+                                            #method_sig {
+                                                self . 0 . #method_ident(#arguments_list)
+                                            }
+                                        }
+                                    ))
+                                }
                             }
                             _ => None,
                         })
@@ -108,56 +155,21 @@ fn main() {
         let contract_interface = format_ident!(trait_name, "{}Interface");
 
         let mut methods_stream = quote!();
+        let mut methods_no_attrs_stream = quote!();
         let mut contract_impl_stream = quote!();
-        for (method_quote, method_sig) in method_sigs {
+        for (method_quote, method_no_attr_quote, method_impl_quote) in method_sigs {
             methods_stream.extend(method_quote);
-
-            let method_ident = &method_sig.ident;
-            let mut inputs_iter = method_sig.decl.inputs.iter();
-            let self_ref_check = inputs_iter.next();
-            let self_ref_error = format!(
-                "ABI function `{}` must have `&mut self` as its first argument.",
-                method_ident.to_string()
-            );
-            match self_ref_check {
-                Some(syn::FnArg::SelfRef(ref selfref)) => {
-                    if selfref.mutability.is_none() {
-                        panic!(self_ref_error)
-                    }
-                }
-                _ => panic!(self_ref_error),
-            }
-
-            let mut arguments_list: Punctuated<Ident, Comma> = Punctuated::new();
-            for input in inputs_iter {
-                match input {
-                    FnArg::Captured(arg_captured) => match &arg_captured.pat {
-                        Pat::Ident(pat_ident) => {
-                            arguments_list.push(pat_ident.ident.clone());
-                        }
-                        _ => (),
-                    },
-                    _ => (),
-                }
-            }
-            if arguments_list.is_empty() {
-                contract_impl_stream.extend(quote! {
-                    #method_sig {
-                        self . 0 . #method_ident()
-                    }
-                });
-            } else {
-                contract_impl_stream.extend(quote! {
-                    #method_sig {
-                        self . 0 . #method_ident(#arguments_list)
-                    }
-                });
-            }
+            methods_no_attrs_stream.extend(method_no_attr_quote);
+            contract_impl_stream.extend(method_impl_quote);
         }
 
         let contract_impl_group = Group::new(proc_macro2::Delimiter::Brace, contract_impl_stream);
         let methods_group = Group::new(proc_macro2::Delimiter::Brace, methods_stream);
+        let methods_no_attrs_group =
+            Group::new(proc_macro2::Delimiter::Brace, methods_no_attrs_stream);
         let trait_stream = quote! {
+            #![allow(non_snake_case)]
+
             extern crate owasm_abi;
             extern crate owasm_abi_derive;
             extern crate owasm_ethereum;
@@ -169,7 +181,7 @@ fn main() {
             #[eth_abi(#contract_endpoint, #contract_client)]
             trait #trait_name #methods_group
 
-            pub trait #contract_interface #methods_group
+            pub trait #contract_interface #methods_no_attrs_group
 
             pub struct #contract_struct<T: #contract_interface>(pub T);
 
@@ -178,7 +190,7 @@ fn main() {
                     #contract_endpoint::new(self).dispatch_ctor(&owasm_ethereum::input());
                 }
                 pub fn call(self) {
-                    owasm_ethereum::ret(&contract_endpoint::new(self).dispatch(&owasm_ethereum::input()));
+                    owasm_ethereum::ret(&#contract_endpoint::new(self).dispatch(&owasm_ethereum::input()));
                 }
             }
 
@@ -212,7 +224,7 @@ fn main() {
             panic!("Unexpected input. The second line of Cargo.toml should contain the name of the crate");
         }
         let crate_name = second_line[1].trim_matches(|c| c == ' ' || c == '\"');
-        let abi_crate_name = format!("{}_abi", crate_name);
+        let abi_crate_name = format!("{}-abi", crate_name);
 
         let template = mustache::compile_str(&format_string).unwrap();
         let data = MapBuilder::new().insert_str("name", abi_crate_name).build();

@@ -1,7 +1,5 @@
 #![no_std]
 
-extern crate owasm_std;
-
 use owasm_abi::types::Address;
 use owasm_std::logger::debug;
 

@@ -1,6 +1,8 @@
-/target/
+target/
 **/*.rs.bk
 Cargo.lock
+generated/
+test_contract_abi/
 
 # Metadata of Visual Studio Code
 /.vscode/

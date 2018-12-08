@@ -1,236 +1,144 @@
 #![recursion_limit = "192"]
 
-extern crate mustache;
-extern crate proc_macro2;
+#[macro_use]
+extern crate clap;
 #[macro_use]
 extern crate quote;
-extern crate clap;
-extern crate owasm_abi_cli;
-extern crate syn;
+#[macro_use]
+extern crate serde_derive;
 
-use std::fs;
-use std::path::Path;
+mod rustfmt;
 
-use clap::{App, Arg};
-use mustache::MapBuilder;
-use owasm_abi_cli::rustfmt;
-use proc_macro2::{Group, Span, TokenStream};
-use syn::punctuated::Punctuated;
-use syn::token::{Bracket, Colon2, Comma, Pound};
-use syn::AttrStyle::Outer;
-use syn::{Attribute, FnArg, Ident, MethodSig, Pat, Path as SynPath, PathArguments, PathSegment};
+use std::{collections::BTreeMap, fs, path::Path};
 
-macro_rules! format_ident {
-    ($ident:expr, $fstr:expr) => {
-        syn::Ident::new(&format!($fstr, $ident), $ident.span())
-    };
+fn read_file(p: &Path) -> String {
+    fs::read_to_string(p).expect(&format!("Error: could not read {}", p.to_str().unwrap()))
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct TomlProject {
+    name: String,
+    version: String,
+    authors: Vec<String>,
+    edition: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct TomlManifest {
+    package: TomlProject,
+    #[serde(serialize_with = "toml::ser::tables_last")]
+    dependencies: BTreeMap<String, toml::Value>,
+}
+
+fn gen_cargo_toml(cargo_path: &Path) -> String {
+    let mut mf: TomlManifest = toml::from_str(&read_file(cargo_path)).unwrap();
+    mf.package.name += "-abi";
+    mf.dependencies = mf
+        .dependencies
+        .into_iter()
+        .filter(|(name, _version)| name.starts_with("owasm-"))
+        .collect();
+    toml::to_string(&mf).unwrap()
 }
 
 fn main() {
-    let matches = App::new("owasm-derive")
+    let matches = app_from_crate!()
         .arg(
-            Arg::with_name("crate")
+            clap::Arg::with_name("contract-crate")
                 .index(1)
                 .required(true)
                 .help("Path to contract crate"),
         )
+        .arg(
+            clap::Arg::with_name("force")
+                .short("f")
+                .help("Overwrite existing ABI crate."),
+        )
         .get_matches();
 
-    let crate_path = Path::new(matches.value_of("crate").unwrap());
-    let lib_path = crate_path.join("src/lib.rs").as_path().to_owned();
-    let cargo_path = crate_path.join("Cargo.toml").as_path().to_owned();
+    let crate_path = Path::new(matches.value_of("contract-crate").unwrap());
+    let lib_path = crate_path.join("src/lib.rs");
+    let cargo_path = crate_path.join("Cargo.toml");
 
-    let code = fs::read_to_string(&lib_path).expect(&format!(
-        "Error reading {:?}. Please make sure that the file exists.",
-        lib_path
+    let mut abi_crate_path = std::env::current_dir().unwrap();
+    abi_crate_path.push(format!(
+        "{}_abi",
+        crate_path.file_name().unwrap().to_str().unwrap()
     ));
-    let ast = syn::parse_file(&code).unwrap();
 
-    let mut punctuated: Punctuated<PathSegment, Colon2> = Punctuated::new();
-    punctuated.push(PathSegment {
-        ident: Ident::new("owasm_abi_derive", Span::call_site()),
-        arguments: PathArguments::None,
-    });
-    punctuated.push(PathSegment {
-        ident: Ident::new("contract", Span::call_site()),
-        arguments: PathArguments::None,
-    });
+    let abi_crate_opts = cargo::ops::NewOptions::new(
+        Some(cargo::ops::VersionControl::Git),
+        false, /* bin */
+        true,  /* lib */
+        abi_crate_path.clone(),
+        None, /* name */
+        None, /* edition */
+        None, /* registry */
+    );
+    let did_init_crate = cargo::ops::init(
+        &abi_crate_opts.unwrap(),
+        &cargo::util::Config::default().unwrap(), /* config */
+    );
 
-    let contract_attribute = Attribute {
-        pound_token: Pound::default(),
-        style: Outer,
-        bracket_token: Bracket::default(),
-        path: SynPath {
-            leading_colon: None,
-            segments: punctuated,
-        },
-        tts: TokenStream::new(),
-    };
+    if did_init_crate.is_err() && !matches.is_present("force") {
+        println!("Generated ABI crate already exists. Pass `-f` to overwrite.");
+        return;
+    }
 
-    let traits_to_method_sigs: Vec<(&Ident, Vec<(TokenStream, TokenStream, TokenStream)>)> = ast
+    let ast = syn::parse_file(&read_file(&lib_path)).expect("lib.rs has syntax errors.");
+    let contract_trait = ast
         .items
         .iter()
-        .filter_map(|item| match item {
-            syn::Item::Trait(m) => {
-                if m.attrs.contains(&contract_attribute) {
-                    let trait_name = &m.ident;
-
-                    let method_sigs = m
-                        .items
-                        .iter()
-                        .filter_map(|item| match item {
-                            syn::TraitItem::Method(m) => {
-                                let method_sig = &m.sig;
-                                let method_attrs = &m.attrs;
-
-                                let method_quote = quote! {
-                                    #(#method_attrs)*
-                                    #method_sig;
-                                };
-                                let method_quote_no_attrs = quote! {
-                                    #method_sig;
-                                };
-
-                                let method_ident = &method_sig.ident;
-                                let mut inputs_iter = method_sig.decl.inputs.iter();
-                                let self_ref_check = inputs_iter.next();
-                                let self_ref_error = format!(
-                                    "ABI function `{}` must have `&mut self` as its first argument.",
-                                    method_ident.to_string()
-                                );
-                                match self_ref_check {
-                                    Some(syn::FnArg::SelfRef(ref selfref)) => {
-                                        if selfref.mutability.is_none() {
-                                            panic!(self_ref_error)
-                                        }
-                                    }
-                                    _ => panic!(self_ref_error),
-                                }
-
-                                let mut arguments_list: Punctuated<Ident, Comma> = Punctuated::new();
-                                for input in inputs_iter {
-                                    match input {
-                                        FnArg::Captured(arg_captured) => match &arg_captured.pat {
-                                            Pat::Ident(pat_ident) => {
-                                                arguments_list.push(pat_ident.ident.clone());
-                                            }
-                                            _ => (),
-                                        },
-                                        _ => (),
-                                    }
-                                }
-                                if arguments_list.is_empty() {
-                                    Some((method_quote, method_quote_no_attrs,
-                                        quote! {
-                                            #method_sig {
-                                                self . 0 . #method_ident()
-                                            }
-                                        }
-                                    ))
-                                } else {
-                                    Some((method_quote, method_quote_no_attrs,
-                                        quote! {
-                                            #method_sig {
-                                                self . 0 . #method_ident(#arguments_list)
-                                            }
-                                        }
-                                    ))
-                                }
-                            }
-                            _ => None,
-                        })
-                        .collect();
-                    return Some((trait_name, method_sigs));
-                }
-                None
-            }
+        .filter_map(|itm| match itm {
+            syn::Item::Trait(t) => t
+                .attrs
+                .iter()
+                .find(|attr| match attr.path.segments.last() {
+                    Some(syn::punctuated::Pair::End(e)) => e.ident == "contract",
+                    _ => false,
+                })
+                .and(Some(t)),
             _ => None,
         })
-        .collect();
+        .nth(0)
+        .expect("Could not find trait annotated with `owasm_abi_derive::contract`");
 
-    for (trait_name, method_sigs) in traits_to_method_sigs {
-        let contract_endpoint = format_ident!(trait_name, "{}Endpoint");
-        let contract_client = format_ident!(trait_name, "{}Client");
-        let contract_struct = format_ident!(trait_name, "{}Inst");
-        let contract_interface = format_ident!(trait_name, "{}Interface");
+    let contract = owasm_abi_utils::Contract::new(&contract_trait);
 
-        let mut methods_stream = quote!();
-        let mut methods_no_attrs_stream = quote!();
-        let mut contract_impl_stream = quote!();
-        for (method_quote, method_no_attr_quote, method_impl_quote) in method_sigs {
-            methods_stream.extend(method_quote);
-            methods_no_attrs_stream.extend(method_no_attr_quote);
-            contract_impl_stream.extend(method_impl_quote);
-        }
+    let trait_name = contract.trait_name;
+    let contract_ep = contract.endpoint_name;
+    let contract_client = contract.client_name;
+    let method_sigs = contract.method_sigs;
 
-        let contract_impl_group = Group::new(proc_macro2::Delimiter::Brace, contract_impl_stream);
-        let methods_group = Group::new(proc_macro2::Delimiter::Brace, methods_stream);
-        let methods_no_attrs_group =
-            Group::new(proc_macro2::Delimiter::Brace, methods_no_attrs_stream);
-        let trait_stream = quote! {
-            #![allow(non_snake_case)]
+    let abi_lib = quote! {
+      extern crate owasm_abi;
+      extern crate owasm_abi_derive;
+      extern crate owasm_ethereum;
+      extern crate owasm_std;
 
-            extern crate owasm_abi;
-            extern crate owasm_abi_derive;
-            extern crate owasm_ethereum;
+      use owasm_abi::types::*;
 
-            use owasm_abi::eth::EndpointInterface;
-            use owasm_abi::types::*;
-            use owasm_abi_derive::eth_abi;
+      #[owasm_abi_derive::eth_abi(#contract_ep, #contract_client)]
+      pub trait #trait_name {
+        #(#method_sigs)*
+      }
+    };
 
-            #[eth_abi(#contract_endpoint, #contract_client)]
-            trait #trait_name #methods_group
+    fs::write(
+        abi_crate_path.join("src/lib.rs").as_path(),
+        rustfmt::format(abi_lib.to_string()).0,
+    )
+    .unwrap();
 
-            pub trait #contract_interface #methods_no_attrs_group
+    fs::write(
+        abi_crate_path.join("Cargo.toml").as_path(),
+        gen_cargo_toml(cargo_path.as_path()),
+    )
+    .unwrap();
 
-            pub struct #contract_struct<T: #contract_interface>(pub T);
-
-            impl<T: #contract_interface> #contract_struct<T> {
-                pub fn deploy(self) {
-                    #contract_endpoint::new(self).dispatch_ctor(&owasm_ethereum::input());
-                }
-                pub fn call(self) {
-                    owasm_ethereum::ret(&#contract_endpoint::new(self).dispatch(&owasm_ethereum::input()));
-                }
-            }
-
-            impl<T: #contract_interface> #trait_name for #contract_struct<T> #contract_impl_group
-        };
-
-        let (output, err) = rustfmt(trait_stream.to_string());
-        if !err.is_empty() {
-            panic!("Failed to format the code: {}", err);
-        }
-        fs::create_dir_all(crate_path.join("generated/src").as_path()).unwrap();
-        fs::write(crate_path.join("generated/src/lib.rs").as_path(), output).unwrap();
-
-        let format_string = fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("Cargo.toml.tmpl")
-                .as_path(),
-        )
-        .unwrap();
-        let cargo_string = fs::read_to_string(&cargo_path).expect(&format!(
-            "Error reading {:?}. Please make sure that the file exists.",
-            cargo_path
-        ));
-        let second_line: Vec<&str> = cargo_string
-            .lines()
-            .nth(1)
-            .unwrap()
-            .splitn(2, '=')
-            .collect();
-        if second_line[0].trim() != "name" {
-            panic!("Unexpected input. The second line of Cargo.toml should contain the name of the crate");
-        }
-        let crate_name = second_line[1].trim_matches(|c| c == ' ' || c == '\"');
-        let abi_crate_name = format!("{}-abi", crate_name);
-
-        let template = mustache::compile_str(&format_string).unwrap();
-        let data = MapBuilder::new().insert_str("name", abi_crate_name).build();
-        let mut cargo_file =
-            fs::File::create(crate_path.join("generated/Cargo.toml").as_path()).unwrap();
-
-        template.render_data(&mut cargo_file, &data).unwrap();
-    }
+    println!(
+        "ABI crate for {} created at {}",
+        trait_name,
+        abi_crate_path.to_str().unwrap()
+    );
 }

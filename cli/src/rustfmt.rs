@@ -26,7 +26,7 @@
 /// LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 /// OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 /// SUCH DAMAGE.
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::process;
 use std::sync::{Once, ONCE_INIT};
 
@@ -35,7 +35,7 @@ use std::sync::{Once, ONCE_INIT};
 //
 // Run `rustfmt` on the given source string and return a tuple of the formatted
 // bindings, and rustfmt's stderr.
-pub fn rustfmt(source: String) -> (String, String) {
+pub fn format(source: String) -> (String, String) {
     static CHECK_RUSTFMT: Once = ONCE_INIT;
 
     CHECK_RUSTFMT.call_once(|| {
@@ -60,13 +60,7 @@ The latest `rustfmt` is required to run the `bindgen` test suite. Install
     });
 
     let mut child = process::Command::new("rustup")
-        .args(&[
-            "run",
-            "nightly",
-            "rustfmt",
-            "--config-path",
-            concat!(env!("CARGO_MANIFEST_DIR"), "/rustfmt.toml"),
-        ])
+        .args(&["run", "nightly", "rustfmt"])
         .stdin(process::Stdio::piped())
         .stdout(process::Stdio::piped())
         .stderr(process::Stdio::piped())

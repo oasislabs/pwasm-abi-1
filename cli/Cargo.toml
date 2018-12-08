@@ -1,21 +1,19 @@
 [package]
-name = "owasm-abi-cli"
+name = "cargo-owasm"
 version = "0.1.0"
-authors = ["David Yan <david.yan@berkeley.edu>"]
+authors = ["Oasis Labs Inc. <info@oasislabs.com>"]
 edition = "2018"
 
 [dependencies]
+cargo = "0.32.0"
 clap = "2.24"
-mustache = "0.9"
+owasm-abi-utils = { path = "../utils" }
 proc-macro2 = "0.4"
 quote = "0.6"
+serde = "1.0.80"
+serde_derive = "1.0.80"
 syn = "0.15"
+toml = "0.4.10"
 
 [features]
-default = ["syn/full", "syn/extra-traits"]
-
-[lib]
-
-[[bin]]
-name = "owasm-derive"
-path = "src/main.rs"
+default = ["syn/full", "syn/parsing"]

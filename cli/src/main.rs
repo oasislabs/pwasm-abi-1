@@ -56,7 +56,8 @@ fn main() {
         .arg(
             clap::Arg::with_name("output")
                 .short("o")
-                .help("Output directory"),
+                .help("Output directory")
+                .takes_value(true),
         )
         .arg(
             clap::Arg::with_name("force")
@@ -79,7 +80,7 @@ fn main() {
             ));
         }
     } else {
-        abi_crate_path = crate_path.to_path_buf();
+        abi_crate_path = std::env::current_dir().unwrap();
     }
     abi_crate_path.push(format!(
         "{}_abi",

@@ -27,8 +27,10 @@
 /// OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 /// SUCH DAMAGE.
 use std::io::{self, Write};
-use std::process;
-use std::sync::{Once, ONCE_INIT};
+use std::{
+    process,
+    sync::{Once, ONCE_INIT},
+};
 
 // This function was copied from the following file:
 // https://github.com/rust-lang/rust-bindgen/blob/c3955ddeac236f4a6b967d5b8ddc8dc21238d152/tests/tests.rs

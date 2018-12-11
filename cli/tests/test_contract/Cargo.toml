@@ -6,7 +6,7 @@ authors = ["Oasis Labs Inc. <info@oasislabs.com>"]
 [dependencies]
 owasm-ethereum = "0.7"
 owasm-abi = "0.1"
-owasm-abi-derive = { path = "../../../derive" }
+owasm-abi-derive = "0.1"
 owasm-std = "0.13"
 
 [lib]

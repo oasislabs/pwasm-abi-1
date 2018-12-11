@@ -9,7 +9,11 @@ extern crate serde_derive;
 
 mod rustfmt;
 
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 fn read_file(p: &Path) -> String {
     fs::read_to_string(p).expect(&format!("Error: could not read {}", p.to_str().unwrap()))
@@ -50,6 +54,11 @@ fn main() {
                 .help("Path to contract crate"),
         )
         .arg(
+            clap::Arg::with_name("output")
+                .short("o")
+                .help("Output directory"),
+        )
+        .arg(
             clap::Arg::with_name("force")
                 .short("f")
                 .help("Overwrite existing ABI crate."),
@@ -60,7 +69,18 @@ fn main() {
     let lib_path = crate_path.join("src/lib.rs");
     let cargo_path = crate_path.join("Cargo.toml");
 
-    let mut abi_crate_path = std::env::current_dir().unwrap();
+    let mut abi_crate_path;
+    if matches.is_present("output") {
+        abi_crate_path = PathBuf::from(matches.value_of("output").unwrap());
+        if !abi_crate_path.exists() {
+            fs::create_dir_all(&abi_crate_path).expect(&format!(
+                "Failed to create output directory {}",
+                abi_crate_path.to_str().unwrap()
+            ));
+        }
+    } else {
+        abi_crate_path = crate_path.to_path_buf();
+    }
     abi_crate_path.push(format!(
         "{}_abi",
         crate_path.file_name().unwrap().to_str().unwrap()
@@ -124,11 +144,12 @@ fn main() {
       }
     };
 
-    fs::write(
-        abi_crate_path.join("src/lib.rs").as_path(),
-        rustfmt::format(abi_lib.to_string()).0,
-    )
-    .unwrap();
+    let (output, error) = rustfmt::format(abi_lib.to_string());
+    if !error.is_empty() && error.split("\n").any(|line| !line.starts_with("Warning:")) {
+        println!("Failed to format generated code. Error: {}", error);
+        return;
+    }
+    fs::write(abi_crate_path.join("src/lib.rs").as_path(), output).unwrap();
 
     fs::write(
         abi_crate_path.join("Cargo.toml").as_path(),

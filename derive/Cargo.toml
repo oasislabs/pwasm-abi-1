@@ -15,6 +15,7 @@ categories = ["no-std", "embedded"]
 panic = "abort"
 
 [dependencies]
+owasm-abi-utils = { path = "../utils" }
 quote = "0.6.8"
 syn = { version = "0.15.12", features = ["full", "extra-traits"] }
 proc-macro2 = "0.4"

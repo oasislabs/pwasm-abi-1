@@ -21,59 +21,59 @@ extern crate serde_derive;
 
 mod error;
 mod items;
-mod utils;
 mod json;
+mod utils;
 
-use proc_macro2::{Span};
-use json::write_json_abi;
+use error::{Error, Result};
 use items::Item;
-use error::{Result, Error};
+use json::write_json_abi;
+use proc_macro2::Span;
 
 /// Arguments given to the `eth_abi` attribute macro.
 struct Args {
-	/// The required name of the endpoint.
-	endpoint_name: String,
-	/// The optional name of the client.
-	client_name: Option<String>,
+    /// The required name of the endpoint.
+    endpoint_name: String,
+    /// The optional name of the client.
+    client_name: Option<String>,
 }
 
 impl Args {
-	/// Extracts `eth_abi` argument information from the given `syn::AttributeArgs`.
-	pub fn from_attribute_args(attr_args: syn::AttributeArgs) -> Result<Args> {
-		if attr_args.len() == 0 || attr_args.len() > 2 {
-			return Err(Error::invalid_number_of_arguments(0));
-		}
-		let endpoint_name =
-			if let syn::NestedMeta::Meta(syn::Meta::Word(ident)) = attr_args.get(0).unwrap() {
-				Ok(ident.to_string())
-			} else {
-				Err(Error::malformatted_argument(0))
-			}?;
-		let client_name = attr_args
-			.get(1)
-			.map(|meta| {
-				if let syn::NestedMeta::Meta(syn::Meta::Word(ident)) = meta {
-					Ok(ident.to_string())
-				} else {
-					Err(Error::malformatted_argument(1))
-				}
-			})
-			.map(|meta| meta.unwrap());
-		Ok(Args {
-			endpoint_name,
-			client_name,
-		})
-	}
+    /// Extracts `eth_abi` argument information from the given `syn::AttributeArgs`.
+    pub fn from_attribute_args(attr_args: syn::AttributeArgs) -> Result<Args> {
+        if attr_args.len() == 0 || attr_args.len() > 2 {
+            return Err(Error::invalid_number_of_arguments(0));
+        }
+        let endpoint_name =
+            if let syn::NestedMeta::Meta(syn::Meta::Word(ident)) = attr_args.get(0).unwrap() {
+                Ok(ident.to_string())
+            } else {
+                Err(Error::malformatted_argument(0))
+            }?;
+        let client_name = attr_args
+            .get(1)
+            .map(|meta| {
+                if let syn::NestedMeta::Meta(syn::Meta::Word(ident)) = meta {
+                    Ok(ident.to_string())
+                } else {
+                    Err(Error::malformatted_argument(1))
+                }
+            })
+            .map(|meta| meta.unwrap());
+        Ok(Args {
+            endpoint_name,
+            client_name,
+        })
+    }
 
-	/// Returns the given endpoint name.
-	pub fn endpoint_name(&self) -> &str {
-		&self.endpoint_name
-	}
+    /// Returns the given endpoint name.
+    pub fn endpoint_name(&self) -> &str {
+        &self.endpoint_name
+    }
 
-	/// Returns the optional client name.
-	pub fn client_name(&self) -> Option<&str> {
-		self.client_name.as_ref().map(|s| s.as_str())
-	}
+    /// Returns the optional client name.
+    pub fn client_name(&self) -> Option<&str> {
+        self.client_name.as_ref().map(|s| s.as_str())
+    }
 }
 
 /// Derive of the Ethereum/Solidity ABI for the given trait interface.
@@ -115,117 +115,116 @@ impl Args {
 /// defined in the `Contract2` trait.
 #[proc_macro_attribute]
 pub fn eth_abi(
-	args: proc_macro::TokenStream,
-	input: proc_macro::TokenStream,
+    args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-	let args_toks = parse_macro_input!(args as syn::AttributeArgs);
-	let input_toks = parse_macro_input!(input as syn::Item);
+    let args_toks = parse_macro_input!(args as syn::AttributeArgs);
+    let input_toks = parse_macro_input!(input as syn::Item);
 
-	let output = match impl_eth_abi(args_toks, input_toks) {
-		Ok(output) => output,
-		Err(err) => panic!("[eth_abi] encountered error: {}", err),
-	};
+    let output = match impl_eth_abi(args_toks, input_toks) {
+        Ok(output) => output,
+        Err(err) => panic!("[eth_abi] encountered error: {}", err),
+    };
 
-	output.into()
+    output.into()
 }
 
 /// Implementation of `eth_abi`.
 ///
 /// This convenience function is mainly used to better handle the results of token stream.
 fn impl_eth_abi(args: syn::AttributeArgs, input: syn::Item) -> Result<proc_macro2::TokenStream> {
-	let args = Args::from_attribute_args(args)?;
-	let intf = items::Interface::from_item(input);
+    let args = Args::from_attribute_args(args)?;
+    let intf = items::Interface::from_item(input);
 
-	write_json_abi(&intf)?;
+    write_json_abi(&intf)?;
 
-	match args.client_name() {
-		None => generate_eth_endpoint_wrapper(&intf, args.endpoint_name()),
-		Some(client_name) => {
-			generate_eth_endpoint_and_client_wrapper(&intf, args.endpoint_name(), client_name)
-		}
-	}
+    match args.client_name() {
+        None => generate_eth_endpoint_wrapper(&intf, args.endpoint_name()),
+        Some(client_name) => {
+            generate_eth_endpoint_and_client_wrapper(&intf, args.endpoint_name(), client_name)
+        }
+    }
 }
 
 /// Generates the eth abi code in case of a single provided endpoint.
 fn generate_eth_endpoint_wrapper(
-	intf: &items::Interface,
-	endpoint_name: &str,
+    intf: &items::Interface,
+    endpoint_name: &str,
 ) -> Result<proc_macro2::TokenStream> {
-	// FIXME: Code duplication with `generate_eth_endpoint_and_client_wrapper`
-	//        We might want to fix this, however it is not critical.
-	//        >>>
-	let name_ident_use = syn::Ident::new(intf.name(), Span::call_site());
-	let mod_name = format!("owasm_abi_impl_{}", &intf.name().clone());
-	let mod_name_ident = syn::Ident::new(&mod_name, Span::call_site());
-	// FIXME: <<<
+    // FIXME: Code duplication with `generate_eth_endpoint_and_client_wrapper`
+    //        We might want to fix this, however it is not critical.
+    //        >>>
+    let name_ident_use = syn::Ident::new(intf.name(), Span::call_site());
+    let mod_name = format!("owasm_abi_impl_{}", &intf.name().clone());
+    let mod_name_ident = syn::Ident::new(&mod_name, Span::call_site());
+    // FIXME: <<<
 
-	let endpoint_toks = generate_eth_endpoint(endpoint_name, intf);
-	let endpoint_ident = syn::Ident::new(endpoint_name, Span::call_site());
+    let endpoint_toks = generate_eth_endpoint(endpoint_name, intf);
+    let endpoint_ident = syn::Ident::new(endpoint_name, Span::call_site());
 
-	Ok(quote! {
-		#intf
-		#[allow(non_snake_case)]
-		mod #mod_name_ident {
-			extern crate owasm_ethereum;
-			extern crate owasm_abi;
-			use owasm_abi::types::*;
-			use super::#name_ident_use;
-			#endpoint_toks
-		}
-		pub use self::#mod_name_ident::#endpoint_ident;
-	})
+    Ok(quote! {
+        #intf
+        #[allow(non_snake_case)]
+        mod #mod_name_ident {
+            extern crate owasm_ethereum;
+            extern crate owasm_abi;
+            use owasm_abi::types::*;
+            use super::#name_ident_use;
+            #endpoint_toks
+        }
+        pub use self::#mod_name_ident::#endpoint_ident;
+    })
 }
 
 /// Generates the eth abi code in case of a provided endpoint and client.
 fn generate_eth_endpoint_and_client_wrapper(
-	intf: &items::Interface,
-	endpoint_name: &str,
-	client_name: &str,
+    intf: &items::Interface,
+    endpoint_name: &str,
+    client_name: &str,
 ) -> Result<proc_macro2::TokenStream> {
+    // FIXME: Code duplication with `generate_eth_endpoint_and_client_wrapper`
+    //        We might want to fix this, however it is not critical.
+    //        >>>
+    let name_ident_use = syn::Ident::new(intf.name(), Span::call_site());
+    let mod_name = format!("owasm_abi_impl_{}", &intf.name().clone());
+    let mod_name_ident = syn::Ident::new(&mod_name, Span::call_site());
+    // FIXME: <<<
 
-	// FIXME: Code duplication with `generate_eth_endpoint_and_client_wrapper`
-	//        We might want to fix this, however it is not critical.
-	//        >>>
-	let name_ident_use = syn::Ident::new(intf.name(), Span::call_site());
-	let mod_name = format!("owasm_abi_impl_{}", &intf.name().clone());
-	let mod_name_ident = syn::Ident::new(&mod_name, Span::call_site());
-	// FIXME: <<<
+    let endpoint_toks = generate_eth_endpoint(endpoint_name, &intf);
+    let client_toks = generate_eth_client(client_name, &intf);
+    let endpoint_name_ident = syn::Ident::new(endpoint_name, Span::call_site());
+    let client_name_ident = syn::Ident::new(&client_name, Span::call_site());
 
-	let endpoint_toks = generate_eth_endpoint(endpoint_name, &intf);
-	let client_toks = generate_eth_client(client_name, &intf);
-	let endpoint_name_ident = syn::Ident::new(endpoint_name, Span::call_site());
-	let client_name_ident = syn::Ident::new(&client_name, Span::call_site());
-
-	Ok(quote! {
-		#intf
-		#[allow(non_snake_case)]
-		mod #mod_name_ident {
-			extern crate owasm_ethereum;
-			extern crate owasm_abi;
-			use owasm_abi::types::*;
-			use super::#name_ident_use;
-			#endpoint_toks
-			#client_toks
-		}
-		pub use self::#mod_name_ident::#endpoint_name_ident;
-		pub use self::#mod_name_ident::#client_name_ident;
-	})
+    Ok(quote! {
+        #intf
+        #[allow(non_snake_case)]
+        mod #mod_name_ident {
+            extern crate owasm_ethereum;
+            extern crate owasm_abi;
+            use owasm_abi::types::*;
+            use super::#name_ident_use;
+            #endpoint_toks
+            #client_toks
+        }
+        pub use self::#mod_name_ident::#endpoint_name_ident;
+        pub use self::#mod_name_ident::#client_name_ident;
+    })
 }
 
 fn generate_eth_client(client_name: &str, intf: &items::Interface) -> proc_macro2::TokenStream {
-	let client_ctor = intf.constructor().map(
-		|signature| utils::produce_signature(
-			&signature.name,
-			&signature.method_sig,
-			quote! {
-				#![allow(unused_mut)]
-				#![allow(unused_variables)]
-				unimplemented!()
-			}
-		)
-	);
+    let client_ctor = intf.constructor().map(|signature| {
+        utils::produce_signature(
+            &signature.name,
+            &signature.method_sig,
+            quote! {
+                #![allow(unused_mut)]
+                #![allow(unused_variables)]
+                unimplemented!()
+            },
+        )
+    });
 
-	let calls: Vec<proc_macro2::TokenStream> = intf.items().iter().filter_map(|item| {
+    let calls: Vec<proc_macro2::TokenStream> = intf.items().iter().filter_map(|item| {
 		match *item {
 			Item::Signature(ref signature)  => {
 				let hash_literal = syn::Lit::Int(
@@ -295,258 +294,226 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> proc_macro
 		}
 	}).collect();
 
-	let client_ident = syn::Ident::new(client_name, Span::call_site());
-	let name_ident = syn::Ident::new(intf.name(), Span::call_site());
+    let client_ident = syn::Ident::new(client_name, Span::call_site());
+    let name_ident = syn::Ident::new(intf.name(), Span::call_site());
 
-	quote! {
-		pub struct #client_ident {
-			gas: Option<u64>,
-			address: Address,
-			value: Option<U256>,
-		}
+    quote! {
+        pub struct #client_ident {
+            gas: Option<u64>,
+            address: Address,
+            value: Option<U256>,
+        }
 
-		impl #client_ident {
-			pub fn new(address: Address) -> Self {
-				#client_ident {
-					gas: None,
-					address: address,
-					value: None,
-				}
-			}
+        impl #client_ident {
+            pub fn new(address: Address) -> Self {
+                #client_ident {
+                    gas: None,
+                    address: address,
+                    value: None,
+                }
+            }
 
-			pub fn gas(mut self, gas: u64) -> Self {
-				self.gas = Some(gas);
-				self
-			}
+            pub fn gas(mut self, gas: u64) -> Self {
+                self.gas = Some(gas);
+                self
+            }
 
-			pub fn value(mut self, val: U256) -> Self {
-				self.value = Some(val);
-				self
-			}
-		}
+            pub fn value(mut self, val: U256) -> Self {
+                self.value = Some(val);
+                self
+            }
+        }
 
-		impl #name_ident for #client_ident {
-			#client_ctor
-			#(#calls)*
-		}
-	}
+        impl #name_ident for #client_ident {
+            #client_ctor
+            #(#calls)*
+        }
+    }
 }
 
 fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_macro2::TokenStream {
-	fn check_value_if_payable_toks(is_payable: bool) -> proc_macro2::TokenStream {
-		if is_payable {
-			return quote!{}
-		}
-		quote!{
-			if owasm_ethereum::value() > 0.into() {
-				panic!("Unable to accept value in non-payable constructor call");
-			}
-		}
-	}
+    fn check_value_if_payable_toks(is_payable: bool) -> proc_macro2::TokenStream {
+        if is_payable {
+            return quote! {};
+        }
+        quote! {
+            if owasm_ethereum::value() > 0.into() {
+                panic!("Unable to accept value in non-payable constructor call");
+            }
+        }
+    }
 
-	let ctor_branch = intf.constructor().map(
-		|signature| {
-			let arg_types = signature.arguments.iter().map(|&(_, ref ty)| quote! { #ty });
-			let check_value_if_payable = check_value_if_payable_toks(signature.is_payable);
-			quote! {
-				#check_value_if_payable
-				let mut stream = owasm_abi::eth::Stream::new(payload);
-				self.inner.constructor(
-					#(stream.pop::<#arg_types>().expect("argument decoding failed")),*
-				);
-			}
-		}
-	);
+    let ctor_branch = intf.constructor().map(|signature| {
+        let arg_types = signature
+            .arguments
+            .iter()
+            .map(|&(_, ref ty)| quote! { #ty });
+        let check_value_if_payable = check_value_if_payable_toks(signature.is_payable);
+        quote! {
+            #check_value_if_payable
+            let mut stream = owasm_abi::eth::Stream::new(payload);
+            self.inner.constructor(
+                #(stream.pop::<#arg_types>().expect("argument decoding failed")),*
+            );
+        }
+    });
 
-	let branches: Vec<proc_macro2::TokenStream> = intf.items().iter().filter_map(|item| {
-		match *item {
-			Item::Signature(ref signature)  => {
-				let hash_literal = syn::Lit::Int(
-					syn::LitInt::new(signature.hash as u64, syn::IntSuffix::U32, Span::call_site()));
-				let ident = &signature.name;
-				let arg_types = signature.arguments.iter().map(|&(_, ref ty)| quote! { #ty });
-				let check_value_if_payable = check_value_if_payable_toks(signature.is_payable);
-				if !signature.return_types.is_empty() {
-					let return_count_literal = syn::Lit::Int(
-						syn::LitInt::new(signature.return_types.len() as u64, syn::IntSuffix::Usize, Span::call_site()));
-					Some(quote! {
-						#hash_literal => {
-							#check_value_if_payable
-							let mut stream = owasm_abi::eth::Stream::new(method_payload);
-							let result = inner.#ident(
-								#(stream.pop::<#arg_types>().expect("argument decoding failed")),*
-							);
-							let mut sink = owasm_abi::eth::Sink::new(#return_count_literal);
-							sink.push(result);
-							sink.finalize_panicking()
-						}
-					})
-				} else {
-					Some(quote! {
-						#hash_literal => {
-							#check_value_if_payable
-							let mut stream = owasm_abi::eth::Stream::new(method_payload);
-							inner.#ident(
-								#(stream.pop::<#arg_types>().expect("argument decoding failed")),*
-							);
-							Vec::new()
-						}
-					})
-				}
-			},
-			_ => None,
-		}
-	}).collect();
+    let branches: Vec<proc_macro2::TokenStream> = intf
+        .items()
+        .iter()
+        .filter_map(|item| match *item {
+            Item::Signature(ref signature) => {
+                let hash_literal = syn::Lit::Int(syn::LitInt::new(
+                    signature.hash as u64,
+                    syn::IntSuffix::U32,
+                    Span::call_site(),
+                ));
+                let ident = &signature.name;
+                let arg_types = signature
+                    .arguments
+                    .iter()
+                    .map(|&(_, ref ty)| quote! { #ty });
+                let check_value_if_payable = check_value_if_payable_toks(signature.is_payable);
+                if !signature.return_types.is_empty() {
+                    let return_count_literal = syn::Lit::Int(syn::LitInt::new(
+                        signature.return_types.len() as u64,
+                        syn::IntSuffix::Usize,
+                        Span::call_site(),
+                    ));
+                    Some(quote! {
+                        #hash_literal => {
+                            #check_value_if_payable
+                            let mut stream = owasm_abi::eth::Stream::new(method_payload);
+                            let result = inner.#ident(
+                                #(stream.pop::<#arg_types>().expect("argument decoding failed")),*
+                            );
+                            let mut sink = owasm_abi::eth::Sink::new(#return_count_literal);
+                            sink.push(result);
+                            sink.finalize_panicking()
+                        }
+                    })
+                } else {
+                    Some(quote! {
+                        #hash_literal => {
+                            #check_value_if_payable
+                            let mut stream = owasm_abi::eth::Stream::new(method_payload);
+                            inner.#ident(
+                                #(stream.pop::<#arg_types>().expect("argument decoding failed")),*
+                            );
+                            Vec::new()
+                        }
+                    })
+                }
+            }
+            _ => None,
+        })
+        .collect();
 
-	let endpoint_ident = syn::Ident::new(endpoint_name, Span::call_site());
-	let name_ident = syn::Ident::new(&intf.name(), Span::call_site());
+    let endpoint_ident = syn::Ident::new(endpoint_name, Span::call_site());
+    let name_ident = syn::Ident::new(&intf.name(), Span::call_site());
 
-	quote! {
-		pub struct #endpoint_ident<T: #name_ident> {
-			pub inner: T,
-		}
+    quote! {
+        pub struct #endpoint_ident<T: #name_ident> {
+            pub inner: T,
+        }
 
-		impl<T: #name_ident> From<T> for #endpoint_ident<T> {
-			fn from(inner: T) -> #endpoint_ident<T> {
-				#endpoint_ident {
-					inner: inner,
-				}
-			}
-		}
+        impl<T: #name_ident> From<T> for #endpoint_ident<T> {
+            fn from(inner: T) -> #endpoint_ident<T> {
+                #endpoint_ident {
+                    inner: inner,
+                }
+            }
+        }
 
-		impl<T: #name_ident> #endpoint_ident<T> {
-			pub fn new(inner: T) -> Self {
-				#endpoint_ident {
-					inner: inner,
-				}
-			}
+        impl<T: #name_ident> #endpoint_ident<T> {
+            pub fn new(inner: T) -> Self {
+                #endpoint_ident {
+                    inner: inner,
+                }
+            }
 
-			pub fn instance(&self) -> &T {
-				&self.inner
-			}
-		}
+            pub fn instance(&self) -> &T {
+                &self.inner
+            }
+        }
 
-		impl<T: #name_ident> owasm_abi::eth::EndpointInterface for #endpoint_ident<T> {
-			#[allow(unused_mut)]
-			#[allow(unused_variables)]
-			fn dispatch(&mut self, payload: &[u8]) -> Vec<u8> {
-				let inner = &mut self.inner;
-				if payload.len() < 4 {
-					panic!("Invalid abi invoke");
-				}
-				let method_id = ((payload[0] as u32) << 24)
-					+ ((payload[1] as u32) << 16)
-					+ ((payload[2] as u32) << 8)
-					+ (payload[3] as u32);
+        impl<T: #name_ident> owasm_abi::eth::EndpointInterface for #endpoint_ident<T> {
+            #[allow(unused_mut)]
+            #[allow(unused_variables)]
+            fn dispatch(&mut self, payload: &[u8]) -> Vec<u8> {
+                let inner = &mut self.inner;
+                if payload.len() < 4 {
+                    panic!("Invalid abi invoke");
+                }
+                let method_id = ((payload[0] as u32) << 24)
+                    + ((payload[1] as u32) << 16)
+                    + ((payload[2] as u32) << 8)
+                    + (payload[3] as u32);
 
-				let method_payload = &payload[4..];
+                let method_payload = &payload[4..];
 
-				match method_id {
-					#(#branches,)*
-					_ => panic!("Invalid method signature"),
-				}
-			}
+                match method_id {
+                    #(#branches,)*
+                    _ => panic!("Invalid method signature"),
+                }
+            }
 
-			#[allow(unused_variables)]
-			#[allow(unused_mut)]
-			fn dispatch_ctor(&mut self, payload: &[u8]) {
-				#ctor_branch
-			}
-		}
-	}
-}
-
-macro_rules! format_ident {
-  ($ident:expr, $fstr:expr) => {
-    syn::Ident::new(&format!($fstr, $ident), $ident.span())
-  };
+            #[allow(unused_variables)]
+            #[allow(unused_mut)]
+            fn dispatch_ctor(&mut self, payload: &[u8]) {
+                #ctor_branch
+            }
+        }
+    }
 }
 
 #[proc_macro_attribute]
 pub fn contract(
-	_args: proc_macro::TokenStream,
-	input: proc_macro::TokenStream
+    _args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-  let input = parse_macro_input!(input as syn::ItemTrait);
+    let contract = owasm_abi_utils::Contract::new(&parse_macro_input!(input as syn::ItemTrait));
 
-  let trait_name = format_ident!(input.ident, "{}");
-  let contract_ep = format_ident!(input.ident, "{}Endpoint");
-  let contract_client = format_ident!(input.ident, "{}Client");
-  let contract_struct = format_ident!(input.ident, "{}Inst");
+    let contract_struct = contract.struct_name;
+    let trait_name = contract.trait_name;
+    let contract_ep = contract.endpoint_name;
+    let contract_client = contract.client_name;
+    let method_sigs = contract.method_sigs;
+    let method_impls = contract.method_impls;
 
-  let (method_sigs, method_impls):
-	  (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) =
-	input
-	.items
-	.iter()
-	.filter_map(|itm| match itm {
-	  syn::TraitItem::Method(m) => {
-		let msig = &m.sig;
-		let bad_self_ref = format!(
-		  "ABI function `{}` must have `&mut self` as its first argument.",
-		  msig.ident.to_string());
-		match msig.decl.inputs[0] {
-		  syn::FnArg::SelfRef(ref selfref) => {
-		    if selfref.mutability.is_none() {
-		      panic!(bad_self_ref)
-		    }
-		  }
-		  _ => panic!(bad_self_ref)
-		}
+    proc_macro::TokenStream::from(quote! {
+      extern crate owasm_abi;
+      extern crate owasm_abi_derive;
+      extern crate owasm_ethereum;
+      extern crate owasm_std;
 
-		let mattrs = &m.attrs;
-		let sig = quote! {
-		  #(#mattrs)*
-		  #msig;
-		};
+      use owasm_abi::types::*;
 
-		let body = match m.default {
-		  Some(ref mbody) => {
-		    quote! { #msig { #mbody } }
-		  },
-		  None => quote!{}
-		};
+      #[owasm_abi_derive::eth_abi(#contract_ep, #contract_client)]
+      pub trait #trait_name {
+        #(#method_sigs)*
+      }
 
-		Some((sig, body))
-	  }
-	  _ => None,
-	}).unzip();
+      pub struct #contract_struct;
 
-  proc_macro::TokenStream::from(quote! {
-	extern crate owasm_abi;
-	extern crate owasm_abi_derive;
-	extern crate owasm_ethereum;
-	extern crate owasm_std;
+      impl #trait_name for #contract_struct {
+        #(#method_impls)*
+      }
 
-	use owasm_abi::eth::EndpointInterface;
-	use owasm_abi::types::*;
-	use owasm_abi_derive::eth_abi;
+      #[no_mangle]
+      pub fn deploy() {
+        #[cfg(feature = "debug")]
+        std::panic::set_hook(Box::new(|panic_info| owasm_std::logger::debug(&format!("PANIC {}", panic_info))));
+        let mut endpoint = #contract_ep::new(#contract_struct {});
+        endpoint.dispatch_ctor(&owasm_ethereum::input());
+      }
 
-	#[eth_abi(#contract_ep, #contract_client)]
-	pub trait #trait_name {
-	  #(#method_sigs)*
-	}
-
-	pub struct #contract_struct;
-
-	impl #trait_name for #contract_struct {
-	  #(#method_impls)*
-	}
-
-	#[no_mangle]
-	pub fn deploy() {
-	  #[cfg(feature = "debug")]
-	  std::panic::set_hook(Box::new(|panic_info| owasm_std::logger::debug(&format!("PANIC {}", panic_info))));
-	  let mut endpoint = #contract_ep::new(#contract_struct {});
-	  endpoint.dispatch_ctor(&owasm_ethereum::input());
-	}
-
-	#[no_mangle]
-	pub fn call() {
-	  #[cfg(feature = "debug")]
-	  std::panic::set_hook(Box::new(|panic_info| owasm_std::logger::debug(&format!("PANIC {}", panic_info))));
-	  let mut endpoint = #contract_ep::new(#contract_struct {});
-	  owasm_ethereum::ret(&endpoint.dispatch(&owasm_ethereum::input()));
-	}
-  })
+      #[no_mangle]
+      pub fn call() {
+        #[cfg(feature = "debug")]
+        std::panic::set_hook(Box::new(|panic_info| owasm_std::logger::debug(&format!("PANIC {}", panic_info))));
+        let mut endpoint = #contract_ep::new(#contract_struct {});
+        owasm_ethereum::ret(&endpoint.dispatch(&owasm_ethereum::input()));
+      }
+    })
 }

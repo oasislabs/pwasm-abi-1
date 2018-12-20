@@ -487,6 +487,7 @@ pub fn contract(
       extern crate owasm_ethereum;
       extern crate owasm_std;
 
+      use owasm_abi::eth::EndpointInterface;
       use owasm_abi::types::*;
 
       #[owasm_abi_derive::eth_abi(#contract_ep, #contract_client)]

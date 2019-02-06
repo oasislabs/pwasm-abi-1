@@ -454,3 +454,5 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_m
 		}
 	}
 }
+
+include!("contract.rs");

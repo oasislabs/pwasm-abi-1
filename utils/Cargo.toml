@@ -1,0 +1,13 @@
+[package]
+name = "owasm-abi-utils"
+version = "0.1.0"
+authors = ["Oasis Labs Inc. <info@oasislabs.com>"]
+edition = "2018"
+
+[dependencies]
+proc-macro2 = "0.4"
+quote = "0.6.8"
+syn = "0.15"
+
+[features]
+default = ["syn/full", "syn/parsing"]

@@ -1,7 +1,5 @@
 //! Utility module
 
-use lib::*;
-
 pub type Hash = [u8; 32];
 
 /// Converts u32 to right aligned array of 32 bytes.

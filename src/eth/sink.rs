@@ -1,6 +1,5 @@
 //! Sink module;
 
-use lib::*;
 use super::AbiType;
 
 /// Sink for returning number of arguments

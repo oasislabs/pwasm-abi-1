@@ -158,7 +158,7 @@ fn generate_eth_endpoint_wrapper(
 	//        We might want to fix this, however it is not critical.
 	//        >>>
 	let name_ident_use = syn::Ident::new(intf.name(), Span::call_site());
-	let mod_name = format!("pwasm_abi_impl_{}", &intf.name().clone());
+	let mod_name = format!("owasm_abi_impl_{}", &intf.name().clone());
 	let mod_name_ident = syn::Ident::new(&mod_name, Span::call_site());
 	// FIXME: <<<
 
@@ -169,9 +169,7 @@ fn generate_eth_endpoint_wrapper(
 		#intf
 		#[allow(non_snake_case)]
 		mod #mod_name_ident {
-			extern crate pwasm_ethereum;
-			extern crate pwasm_abi;
-			use pwasm_abi::types::{H160, H256, U256, Address, Vec, String};
+			use crate::oasis::prelude::*;
 			use super::#name_ident_use;
 			#endpoint_toks
 		}
@@ -190,7 +188,7 @@ fn generate_eth_endpoint_and_client_wrapper(
 	//        We might want to fix this, however it is not critical.
 	//        >>>
 	let name_ident_use = syn::Ident::new(intf.name(), Span::call_site());
-	let mod_name = format!("pwasm_abi_impl_{}", &intf.name().clone());
+	let mod_name = format!("owasm_abi_impl_{}", &intf.name().clone());
 	let mod_name_ident = syn::Ident::new(&mod_name, Span::call_site());
 	// FIXME: <<<
 
@@ -203,9 +201,7 @@ fn generate_eth_endpoint_and_client_wrapper(
 		#intf
 		#[allow(non_snake_case)]
 		mod #mod_name_ident {
-			extern crate pwasm_ethereum;
-			extern crate pwasm_abi;
-			use pwasm_abi::types::{H160, H256, U256, Address, Vec, String};
+			use crate::oasis::prelude::*;
 			use super::#name_ident_use;
 			#endpoint_toks
 			#client_toks
@@ -252,7 +248,7 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> proc_macro
 					syn::ReturnType::Default => None,
 					syn::ReturnType::Type(_, _) => Some(
 						quote!{
-							let mut stream = pwasm_abi::eth::Stream::new(&result);
+							let mut stream = owasm_abi::eth::Stream::new(&result);
 							stream.pop().expect("failed decode call output")
 						}
 					),
@@ -270,14 +266,14 @@ fn generate_eth_client(client_name: &str, intf: &items::Interface) -> proc_macro
 						payload.push((#hash_literal >> 8) as u8);
 						payload.push(#hash_literal as u8);
 
-						let mut sink = pwasm_abi::eth::Sink::new(#argument_count_literal);
+						let mut sink = owasm_abi::eth::Sink::new(#argument_count_literal);
 						#(#argument_push)*
 
 						sink.drain_to(&mut payload);
 
 						#result_instance
 
-						pwasm_ethereum::call(self.gas.unwrap_or(200000), &self.address, self.value.clone().unwrap_or(U256::zero()), &payload, &mut result[..])
+						owasm_ethereum::call(self.gas.unwrap_or(200000), &self.address, self.value.clone().unwrap_or(U256::zero()), &payload, &mut result[..])
 							.expect("Call failed; todo: allow handling inside contracts");
 
 						#result_pop
@@ -341,7 +337,7 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_m
 			return quote!{}
 		}
 		quote!{
-			if pwasm_ethereum::value() > 0.into() {
+			if owasm_ethereum::value() > 0.into() {
 				panic!("Unable to accept value in non-payable constructor call");
 			}
 		}
@@ -353,7 +349,7 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_m
 			let check_value_if_payable = check_value_if_payable_toks(signature.is_payable);
 			quote! {
 				#check_value_if_payable
-				let mut stream = pwasm_abi::eth::Stream::new(payload);
+				let mut stream = owasm_abi::eth::Stream::new(payload);
 				self.inner.constructor(
 					#(stream.pop::<#arg_types>().expect("argument decoding failed")),*
 				);
@@ -375,11 +371,11 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_m
 					Some(quote! {
 						#hash_literal => {
 							#check_value_if_payable
-							let mut stream = pwasm_abi::eth::Stream::new(method_payload);
+							let mut stream = owasm_abi::eth::Stream::new(method_payload);
 							let result = inner.#ident(
 								#(stream.pop::<#arg_types>().expect("argument decoding failed")),*
 							);
-							let mut sink = pwasm_abi::eth::Sink::new(#return_count_literal);
+							let mut sink = owasm_abi::eth::Sink::new(#return_count_literal);
 							sink.push(result);
 							sink.finalize_panicking()
 						}
@@ -388,7 +384,7 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_m
 					Some(quote! {
 						#hash_literal => {
 							#check_value_if_payable
-							let mut stream = pwasm_abi::eth::Stream::new(method_payload);
+							let mut stream = owasm_abi::eth::Stream::new(method_payload);
 							inner.#ident(
 								#(stream.pop::<#arg_types>().expect("argument decoding failed")),*
 							);
@@ -429,7 +425,7 @@ fn generate_eth_endpoint(endpoint_name: &str, intf: &items::Interface) -> proc_m
 			}
 		}
 
-		impl<T: #name_ident> pwasm_abi::eth::EndpointInterface for #endpoint_ident<T> {
+		impl<T: #name_ident> owasm_abi::eth::EndpointInterface for #endpoint_ident<T> {
 			#[allow(unused_mut)]
 			#[allow(unused_variables)]
 			fn dispatch(&mut self, payload: &[u8]) -> Vec<u8> {

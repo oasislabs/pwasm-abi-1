@@ -1,6 +1,5 @@
 //! Stream module
 
-use lib::*;
 use super::{AbiType, Error};
 
 /// Stream interpretation of incoming payload

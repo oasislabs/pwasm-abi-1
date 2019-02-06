@@ -1,6 +1,4 @@
 use super::*;
-use super::types::*;
-use lib::*;
 
 #[cfg(feature = "std")]
 mod hextest {

@@ -10,11 +10,8 @@ mod common;
 #[cfg(test)]
 mod tests;
 
-pub use self::log::AsLog;
 pub use self::stream::Stream;
 pub use self::sink::Sink;
-
-use super::types;
 
 /// Error for decoding rust types from stream
 #[derive(Debug, PartialEq, Eq)]
@@ -50,7 +47,7 @@ pub trait AbiType : Sized {
 /// Endpoint interface for contracts
 pub trait EndpointInterface {
 	/// Dispatch payload for regular method
-	fn dispatch(&mut self, payload: &[u8]) -> ::lib::Vec<u8>;
+	fn dispatch(&mut self, payload: &[u8]) -> Vec<u8>;
 
 	/// Dispatch constructor payload
 	fn dispatch_ctor(&mut self, payload: &[u8]);

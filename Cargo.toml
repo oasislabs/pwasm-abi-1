@@ -1,5 +1,5 @@
 [package]
-name = "pwasm-abi"
+name = "owasm-abi"
 version = "0.2.2"
 authors = ["NikVolf <nikvolf@gmail.com>", "Alexey Frolov <alexey@parity.io>"]
 license = "MIT/Apache-2.0"
@@ -11,12 +11,13 @@ description = "Rust WebAssembly Contracts Abi"
 keywords = ["wasm", "parity", "webassembly", "blockchain", "abi"]
 categories = ["no-std", "embedded"]
 exclude = [ "tests/*", "derive/*" ]
+edition = "2018"
 
 [profile.release]
 panic = "abort"
 
 [dependencies]
-pwasm-std = "0.13"
+oasis = { git = "https://github.com/oasislabs/oasis-rs" }
 byteorder = { version = "1.2", default-features = false }
 
 [dev-dependencies]
@@ -24,5 +25,4 @@ hex-literal = "0.1"
 
 [features]
 default = []
-std = ["pwasm-std/std", "byteorder/std"]
 strict = []

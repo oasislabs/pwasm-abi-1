@@ -1,9 +1,8 @@
 //! Common types encoding/decoding
 
-use lib::*;
-use super::{util, Stream, AbiType, Sink, Error};
-use super::types::{H160, H256, U256};
-use pwasm_std::str::from_utf8;
+use oasis::prelude::*;
+
+use crate::eth::{util, Stream, AbiType, Sink, Error};
 
 impl AbiType for u32 {
 	fn decode(stream: &mut Stream) -> Result<Self, Error> {
@@ -88,7 +87,7 @@ impl AbiType for String {
 	fn decode(stream: &mut Stream) -> Result<Self, Error> {
 		let len = u32::decode(stream)? as usize;
 
-		let result = from_utf8(&stream.payload()[stream.position()..stream.position() + len])
+		let result = std::str::from_utf8(&stream.payload()[stream.position()..stream.position() + len])
 			.map_err(|_err| Error::Other)?
 			.to_string();
 

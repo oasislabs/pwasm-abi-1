@@ -16,9 +16,6 @@ extern crate byteorder;
 extern crate serde_json;
 extern crate tiny_keccak;
 
-#[macro_use(construct_fixed_hash)]
-extern crate fixed_hash;
-
 #[macro_use]
 extern crate serde_derive;
 
@@ -169,7 +166,7 @@ fn generate_eth_endpoint_wrapper(
 		#intf
 		#[allow(non_snake_case)]
 		mod #mod_name_ident {
-			use crate::oasis::prelude::*;
+			use crate::oasis_std::prelude::*;
 			use super::#name_ident_use;
 			#endpoint_toks
 		}
@@ -201,7 +198,7 @@ fn generate_eth_endpoint_and_client_wrapper(
 		#intf
 		#[allow(non_snake_case)]
 		mod #mod_name_ident {
-			use crate::oasis::prelude::*;
+			use crate::oasis_std::prelude::*;
 			use super::#name_ident_use;
 			#endpoint_toks
 			#client_toks

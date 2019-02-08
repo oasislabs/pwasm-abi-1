@@ -15,7 +15,7 @@ categories = ["no-std", "embedded"]
 panic = "abort"
 
 [dependencies]
-oasis = { git = "https://github.com/oasislabs/oasis-rs" }
+oasis-std = "0.1"
 owasm-abi-utils = { path = "../utils" }
 proc-macro2 = "0.4"
 quote = "0.6.8"
@@ -23,7 +23,6 @@ syn = { version = "0.15.12", features = ["full", "extra-traits"] }
 
 tiny-keccak = { version = "1.4.2", default-features = false }
 byteorder = { version = "1.2.3", default-features = false }
-fixed-hash = { version = "0.3.0", default-features = false }
 
 serde = "1.0.70"
 serde_json = "1.0.24"

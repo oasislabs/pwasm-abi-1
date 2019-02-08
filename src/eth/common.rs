@@ -1,6 +1,6 @@
 //! Common types encoding/decoding
 
-use oasis::prelude::*;
+use oasis_std::prelude::*;
 
 use crate::eth::{util, Stream, AbiType, Sink, Error};
 

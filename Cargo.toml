@@ -17,7 +17,7 @@ edition = "2018"
 panic = "abort"
 
 [dependencies]
-oasis = { git = "https://github.com/oasislabs/oasis-rs" }
+oasis-std = "0.1"
 byteorder = { version = "1.2", default-features = false }
 
 [dev-dependencies]

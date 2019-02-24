@@ -1,7 +1,7 @@
-use {quote, syn, utils};
+use crate::{quote, syn, utils};
 
 use quote::TokenStreamExt;
-use proc_macro2::{self, Span};
+use proc_macro2::Span;
 
 /// Represents an event of a smart contract.
 pub struct Event {

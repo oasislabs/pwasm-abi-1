@@ -1,6 +1,4 @@
-use std;
-
-use json::JsonError;
+use crate::json::JsonError;
 
 /// The result type for this procedural macro.
 pub type Result<T> = std::result::Result<T, Error>;

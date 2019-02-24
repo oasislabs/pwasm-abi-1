@@ -1,7 +1,7 @@
 //! Log module
 
 use byteorder::{BigEndian, ByteOrder};
-use oasis_std::prelude::*;
+use owasm_std::prelude::*;
 
 /// As log trait for how primitive types are represented as indexed arguments
 /// of the event log

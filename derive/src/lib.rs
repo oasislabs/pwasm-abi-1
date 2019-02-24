@@ -4,20 +4,12 @@
 #![deny(unused)]
 
 extern crate proc_macro;
-extern crate proc_macro2;
-
-#[macro_use]
-extern crate syn;
-
-#[macro_use]
-extern crate quote;
-
-extern crate byteorder;
-extern crate serde_json;
-extern crate tiny_keccak;
-
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate syn;
+#[macro_use]
+extern crate quote;
 
 mod error;
 mod items;
@@ -25,7 +17,6 @@ mod utils;
 mod json;
 
 use proc_macro2::{Span};
-use json::write_json_abi;
 use items::Item;
 use error::{Result, Error};
 
@@ -136,7 +127,7 @@ fn impl_eth_abi(args: syn::AttributeArgs, input: syn::Item) -> Result<proc_macro
 	let args = Args::from_attribute_args(args)?;
 	let intf = items::Interface::from_item(input);
 
-	write_json_abi(&intf)?;
+	crate::json::write_json_abi(&intf)?;
 
 	match args.client_name() {
 		None => generate_eth_endpoint_wrapper(&intf, args.endpoint_name()),
@@ -166,7 +157,7 @@ fn generate_eth_endpoint_wrapper(
 		#intf
 		#[allow(non_snake_case)]
 		mod #mod_name_ident {
-			use crate::oasis_std::prelude::*;
+			use crate::owasm_std::prelude::*;
 			use super::#name_ident_use;
 			#endpoint_toks
 		}
@@ -198,7 +189,7 @@ fn generate_eth_endpoint_and_client_wrapper(
 		#intf
 		#[allow(non_snake_case)]
 		mod #mod_name_ident {
-			use crate::oasis_std::prelude::*;
+			use crate::owasm_std::prelude::*;
 			use super::#name_ident_use;
 			#endpoint_toks
 			#client_toks

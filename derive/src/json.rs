@@ -1,10 +1,6 @@
 //! JSON generation
 
-use {items, utils};
-use serde_json;
-
-use std::{io};
-use std;
+use crate::{items, utils};
 
 /// The result type for JSON errors.
 pub type JsonResult<T> = std::result::Result<T, JsonError>;
@@ -12,21 +8,21 @@ pub type JsonResult<T> = std::result::Result<T, JsonError>;
 /// Errors that may occur during JSON operations.
 #[derive(Debug)]
 pub enum JsonError {
-	FailedToCreateDirectory(io::Error),
-	FailedToCreateJsonFile(io::Error),
+	FailedToCreateDirectory(std::io::Error),
+	FailedToCreateJsonFile(std::io::Error),
 	FailedToWriteJsonAbiFile(serde_json::Error),
 }
 
 impl JsonError {
 	/// Returns a JSON error indicating that the creation of the
 	/// directory that will contain the JSON file failed.
-	pub fn failed_to_create_dir(err: io::Error) -> Self {
+	pub fn failed_to_create_dir(err: std::io::Error) -> Self {
 		JsonError::FailedToCreateDirectory(err)
 	}
 
 	/// Returns a JSON error indicating that the creation of the JSON
 	/// abi file failed.
-	pub fn failed_to_create_json_file(err: io::Error) -> Self {
+	pub fn failed_to_create_json_file(err: std::io::Error) -> Self {
 		JsonError::FailedToCreateJsonFile(err)
 	}
 

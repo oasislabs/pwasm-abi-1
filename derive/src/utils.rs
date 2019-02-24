@@ -1,7 +1,7 @@
 use {syn, quote};
 use tiny_keccak::Keccak;
 use byteorder::{BigEndian, ByteOrder};
-use oasis_std::types::H256;
+use owasm_std::types::H256;
 
 pub struct SignatureIterator<'a> {
 	method_sig: &'a syn::MethodSig,

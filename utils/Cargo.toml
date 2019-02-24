@@ -1,6 +1,9 @@
 [package]
 name = "owasm-abi-utils"
 version = "0.1.0"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/oasislabs/owasm-abi"
+description = "Utilities for Oasis macros"
 authors = ["Oasis Labs Inc. <info@oasislabs.com>"]
 edition = "2018"
 

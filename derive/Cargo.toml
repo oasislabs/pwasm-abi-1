@@ -15,7 +15,7 @@ edition = "2018"
 panic = "abort"
 
 [dependencies]
-owasm-abi-utils = { path = "../utils" }
+owasm-abi-utils = "0.1"
 owasm-std = "0.20.1"
 proc-macro2 = "0.4"
 quote = "0.6.8"
